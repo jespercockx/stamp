@@ -8,8 +8,9 @@ plugin = defaultPlugin {
   installCoreToDos = install
 }
 
+
 install :: [CommandLineOption] -> [CoreToDo] -> CoreM [CoreToDo]
-install _ todo = do
+install options todo = do
   reinitializeGlobals
-  hello
-  return todo
+  let pass = agdaMetaPass options
+  return (CoreDoPluginPass "Agda meta-programming" bindsOnlyPass pass : todo)
