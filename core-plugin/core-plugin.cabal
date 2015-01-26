@@ -22,6 +22,17 @@ library
                      , MAlonzo.Code.Plugin
                      , MAlonzo.Code.CoreMonad
                      , MAlonzo.Code.CoreSyn
+                     , MAlonzo.Code.Prelude.List
+                     , MAlonzo.Code.Prelude.Applicative
+                     , MAlonzo.Code.Prelude.Ord
+                     , MAlonzo.Code.Prelude.Nat
+                     , MAlonzo.Code.Prelude.Empty
+                     , MAlonzo.Code.Prelude.Decidable
+                     , MAlonzo.Code.Prelude.Equality
+                     , MAlonzo.Code.Prelude.Equality.Unsafe
+                     , MAlonzo.Code.Prelude.Monad
+                     , MAlonzo.RTE
+
   build-depends:       base >=4.7 && <4.8
                      , ghc
                      , agda-ffi

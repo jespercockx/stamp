@@ -14,8 +14,7 @@ postulate
   Literal       : Set -- TODO
   Type'         : Set -- TODO
   Coercion'     : Set -- TODO
-  -- varOccName    : Var' → OccName
-  -- occNameString : OccName → String
+  getOccString  : Var' -> String
 
 {-# COMPILED_TYPE Var' GhcPlugins.Var #-}
 {-# COMPILED_TYPE OccName GhcPlugins.OccName #-}
@@ -24,8 +23,7 @@ postulate
 {-# COMPILED_TYPE Literal GhcPlugins.Literal #-}
 {-# COMPILED_TYPE Type' GhcPlugins.Type #-}
 {-# COMPILED_TYPE Coercion' GhcPlugins.Coercion #-}
---{-# COMPILED varOccName GhcPlugins.varOccName #-}
---{-# COMPILED occNameString GhcPlugins.occNameString #-}
+{-# COMPILED getOccString GhcPlugins.getOccString #-}
 
 
 -- Redefine it here because the COMPILED_DATA pragma must be in the
@@ -61,7 +59,7 @@ mutual
     App : Expr b → Arg b → Expr b
     Lam : b → Expr b → Expr b
     Let : Bind b → Expr b → Expr b
-    Case : Expr b  → b → Type' → List (Alt b) → Expr b
+    Case : Expr b → b → Type' → List (Alt b) → Expr b
     Cast : Expr b → Coercion' → Expr b
     Tick : Tickish Id → Expr b → Expr b
     Type : Type' → Expr b
