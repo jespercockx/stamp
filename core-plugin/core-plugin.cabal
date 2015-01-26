@@ -18,7 +18,10 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     InstallPlugin
+                     , CoreBridge
                      , MAlonzo.Code.Plugin
+                     , MAlonzo.Code.CoreMonad
+                     , MAlonzo.Code.CoreSyn
   build-depends:       base >=4.7 && <4.8
                      , ghc
                      , agda-ffi

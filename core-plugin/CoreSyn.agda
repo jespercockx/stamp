@@ -1,6 +1,7 @@
 module CoreSyn where
 
 {-# IMPORT GhcPlugins #-}
+{-# IMPORT CoreBridge #-}
 
 open import Prelude.List using (List)
 open import Prelude.String using (String)
@@ -13,8 +14,8 @@ postulate
   Literal       : Set -- TODO
   Type'         : Set -- TODO
   Coercion'     : Set -- TODO
-  varOccName    : Var' → OccName
-  occNameString : OccName → String
+  -- varOccName    : Var' → OccName
+  -- occNameString : OccName → String
 
 {-# COMPILED_TYPE Var' GhcPlugins.Var #-}
 {-# COMPILED_TYPE OccName GhcPlugins.OccName #-}
@@ -23,8 +24,8 @@ postulate
 {-# COMPILED_TYPE Literal GhcPlugins.Literal #-}
 {-# COMPILED_TYPE Type' GhcPlugins.Type #-}
 {-# COMPILED_TYPE Coercion' GhcPlugins.Coercion #-}
-{-# COMPILED varOccName GhcPlugins.varOccName #-}
-{-# COMPILED occNameString GhcPlugins.occNameString #-}
+--{-# COMPILED varOccName GhcPlugins.varOccName #-}
+--{-# COMPILED occNameString GhcPlugins.occNameString #-}
 
 
 -- Redefine it here because the COMPILED_DATA pragma must be in the
@@ -54,10 +55,6 @@ data AltCon : Set where
   #-}
 
 mutual
-  data Bind b : Set where
-    NonRec : b → Expr b → Bind b
-    Rec    : List (b × Expr b) → Bind b
-
   data Expr b : Set where
     Var : Id → Expr b
     Lit : Literal → Expr b
@@ -76,6 +73,12 @@ mutual
   Alt : Set → Set
   Alt b = Triple AltCon (List b) (Expr b)
 
+  postulate
+    Bind   : Set → Set
+    NonRec : ∀ {b} → b → Expr b → Bind b
+    Rec    : ∀ {b} → List (b × Expr b) → Bind b
+
+
 -- Problem: Expr and Bind are mutually recursively defined.
 -- Unfortunately, the COMPILED_DATA pragmas are processed
 -- sequentially, not allowing mutual recursion. Thus, when
@@ -86,13 +89,39 @@ mutual
 -- This is a known bug:
 -- https://code.google.com/p/agda/issues/detail?id=223
 
-{-# COMPILED_DATA Bind GhcPlugins.Bind
-    GhcPlugins.NonRec GhcPlugins.Rec #-}
+  -- data Bind b : Set where
+  --   NonRec : b → Expr b → Bind b
+  --   Rec    : List (b × Expr b) → Bind b
+
+
+
+{-# COMPILED_TYPE Bind GhcPlugins.Bind #-}
+
 {-# COMPILED_DATA Expr GhcPlugins.Expr
     GhcPlugins.Var GhcPlugins.Lit GhcPlugins.App GhcPlugins.Lam
     GhcPlugins.Let GhcPlugins.Case GhcPlugins.Cast GhcPlugins.Tick
     GhcPlugins.Type GhcPlugins.Coercion #-}
 
+{-# COMPILED NonRec (\_ -> GhcPlugins.NonRec) #-}
+{-# COMPILED Rec (\_ -> GhcPlugins.Rec) #-}
+
+data Bind' b : Set where
+  NonRec' : b → Expr b → Bind' b
+  Rec'    : List (b × Expr b) → Bind' b
+
+postulate
+  elimBind : ∀ {i b} {P : Set i} →
+             (nonRec : (bndr : b) → (expr : Expr b) → P)
+             (rec : (binds : List (b × Expr b)) → P)
+             (bind : Bind b) → P
+-- Non-dependent eliminator, because exporting a dependent one was
+-- difficult.
+
+{-# COMPILED elimBind (\_ _ _ -> CoreBridge.elimBind) #-}
+
+
+bind2bind' : ∀ {b} → Bind b → Bind' b
+bind2bind' = elimBind NonRec' Rec'
 
 CoreBind : Set
 CoreBind = Bind CoreBndr
