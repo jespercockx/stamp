@@ -2,7 +2,7 @@ module Plugin where
 
 {-# IMPORT GhcPlugins #-}
 
-open import Prelude hiding (_×_)
+open import Prelude
 open import Data.Traversable using (mapM)
 
 
@@ -26,8 +26,8 @@ instance
   BindersList : {c : Set} {{_ : Binders c}} → Binders (List c)
   BindersList = record { binders = concatMap binders }
 
-  Binders_×_ : {c₁ c₂ : Set} {{_ : Binders c₁}} {{_ : Binders c₂}} → Binders (c₁ × c₂)
-  Binders_×_ = record { binders = λ { (c₁ , c₂ ) → binders c₁ ++ binders c₂ } }
+  BindersTuple : {c₁ c₂ : Set} {{_ : Binders c₁}} {{_ : Binders c₂}} → Binders (Tuple c₁ c₂)
+  BindersTuple = record { binders = λ { (tuple c₁ c₂) → binders c₁ ++ binders c₂ } }
 
   {-# TERMINATING #-}
   BindersCoreExpr : Binders CoreExpr

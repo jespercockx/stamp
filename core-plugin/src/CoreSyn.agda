@@ -28,10 +28,9 @@ postulate
 
 -- Redefine it here because the COMPILED_DATA pragma must be in the
 -- defining module.
-infixr 3 _×_
-data _×_ (A B : Set) : Set where
-  _,_ : (x : A) (y : B) → A × B
-{-# COMPILED_DATA _×_ (,) (,) #-}
+data Tuple (A B : Set) : Set where
+  tuple : (x : A) (y : B) → Tuple A B
+{-# COMPILED_DATA Tuple (,) (,) #-}
 
 -- A Triple instead of _ , _ , _ in order to export it
 data Triple (a b c : Set) : Set where
@@ -74,7 +73,7 @@ mutual
   postulate
     Bind   : Set → Set
     NonRec : ∀ {b} → b → Expr b → Bind b
-    Rec    : ∀ {b} → List (b × Expr b) → Bind b
+    Rec    : ∀ {b} → List (Tuple b (Expr b)) → Bind b
 
 
 -- Problem: Expr and Bind are mutually recursively defined.
@@ -105,12 +104,12 @@ mutual
 
 data Bind' b : Set where
   NonRec' : b → Expr b → Bind' b
-  Rec'    : List (b × Expr b) → Bind' b
+  Rec'    : List (Tuple b (Expr b)) → Bind' b
 
 postulate
   elimBind : ∀ {i b} {P : Set i} →
              (nonRec : (bndr : b) → (expr : Expr b) → P)
-             (rec : (binds : List (b × Expr b)) → P)
+             (rec : (binds : List (Tuple b (Expr b))) → P)
              (bind : Bind b) → P
 -- Non-dependent eliminator, because exporting a dependent one was
 -- difficult.
