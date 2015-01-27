@@ -19,7 +19,6 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     InstallPlugin
-                     , CoreBridge
                      , Plugin
                      , MAlonzo.Code.Plugin
                      , MAlonzo.Code.CoreMonad

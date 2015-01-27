@@ -50,9 +50,11 @@ instance
   BindersCoreBind = record { binders = bndrs }
     where
       bndrs : CoreBind → List CoreBndr
-      bndrs bind with bind2bind' bind
-      ... | NonRec' b e = b ∷ binders e
-      ... | Rec' bexprs = binders bexprs
+      bndrs (NonRec b e) = b ∷ binders e
+      bndrs (Rec bexprs) = binders bexprs
+
+
+
 
 printBinders : CoreProgram → CoreM Unit
 printBinders prog = mapM (putMsgS ∘ getOccString) (binders prog) >>

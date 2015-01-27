@@ -1,7 +1,6 @@
 module CoreSyn where
 
 {-# IMPORT GhcPlugins #-}
-{-# IMPORT CoreBridge #-}
 
 open import Prelude.List using (List)
 open import Prelude.String using (String)
@@ -51,74 +50,45 @@ data AltCon : Set where
     GhcPlugins.DataAlt GhcPlugins.LitAlt GhcPlugins.DEFAULT
   #-}
 
-mutual
-  data Expr b : Set where
-    Var : Id → Expr b
-    Lit : Literal → Expr b
-    App : Expr b → Arg b → Expr b
-    Lam : b → Expr b → Expr b
-    Let : Bind b → Expr b → Expr b
-    Case : Expr b → b → Type' → List (Alt b) → Expr b
-    Cast : Expr b → Coercion' → Expr b
-    Tick : Tickish Id → Expr b → Expr b
-    Type : Type' → Expr b
-    Coercion : Coercion' → Expr b
 
-  Arg : Set → Set
-  Arg b = Expr b
+data Expr b : Set
+{-# COMPILED_DECLARE_DATA Expr GhcPlugins.Expr #-}
 
-  Alt : Set → Set
-  Alt b = Triple AltCon (List b) (Expr b)
+data Bind b : Set
+{-# COMPILED_DECLARE_DATA Bind GhcPlugins.Bind #-}
 
-  postulate
-    Bind   : Set → Set
-    NonRec : ∀ {b} → b → Expr b → Bind b
-    Rec    : ∀ {b} → List (Tuple b (Expr b)) → Bind b
+Arg : Set → Set
 
+Alt : Set → Set
 
--- Problem: Expr and Bind are mutually recursively defined.
--- Unfortunately, the COMPILED_DATA pragmas are processed
--- sequentially, not allowing mutual recursion. Thus, when
--- encountering the COMPILED_DATA pragma for Bind, Agda doesn't know
--- how to compile/export the Expr type used in the constructors of
--- Bind, and vice versa.
---
--- This is a known bug:
--- https://code.google.com/p/agda/issues/detail?id=223
+data Expr b where
+  Var : Id → Expr b
+  Lit : Literal → Expr b
+  App : Expr b → Arg b → Expr b
+  Lam : b → Expr b → Expr b
+  Let : Bind b → Expr b → Expr b
+  Case : Expr b → b → Type' → List (Alt b) → Expr b
+  Cast : Expr b → Coercion' → Expr b
+  Tick : Tickish Id → Expr b → Expr b
+  Type : Type' → Expr b
+  Coercion : Coercion' → Expr b
 
-  -- data Bind b : Set where
-  --   NonRec : b → Expr b → Bind b
-  --   Rec    : List (b × Expr b) → Bind b
+Arg b = Expr b
 
-
-
-{-# COMPILED_TYPE Bind GhcPlugins.Bind #-}
+Alt b = Triple AltCon (List b) (Expr b)
 
 {-# COMPILED_DATA Expr GhcPlugins.Expr
-    GhcPlugins.Var GhcPlugins.Lit GhcPlugins.App GhcPlugins.Lam
-    GhcPlugins.Let GhcPlugins.Case GhcPlugins.Cast GhcPlugins.Tick
-    GhcPlugins.Type GhcPlugins.Coercion #-}
+  GhcPlugins.Var GhcPlugins.Lit GhcPlugins.App GhcPlugins.Lam
+  GhcPlugins.Let GhcPlugins.Case GhcPlugins.Cast GhcPlugins.Tick
+  GhcPlugins.Type GhcPlugins.Coercion #-}
 
-{-# COMPILED NonRec (\_ -> GhcPlugins.NonRec) #-}
-{-# COMPILED Rec (\_ -> GhcPlugins.Rec) #-}
+data Bind b where
+  NonRec : b → Expr b → Bind b
+  Rec    : List (Tuple b (Expr b)) → Bind b
 
-data Bind' b : Set where
-  NonRec' : b → Expr b → Bind' b
-  Rec'    : List (Tuple b (Expr b)) → Bind' b
+{-# COMPILED_DATA Bind GhcPlugins.Bind
+    GhcPlugins.NonRec GhcPlugins.Rec #-}
 
-postulate
-  elimBind : ∀ {i b} {P : Set i} →
-             (nonRec : (bndr : b) → (expr : Expr b) → P)
-             (rec : (binds : List (Tuple b (Expr b))) → P)
-             (bind : Bind b) → P
--- Non-dependent eliminator, because exporting a dependent one was
--- difficult.
-
-{-# COMPILED elimBind (\_ _ _ -> CoreBridge.elimBind) #-}
-
-
-bind2bind' : ∀ {b} → Bind b → Bind' b
-bind2bind' = elimBind NonRec' Rec'
 
 CoreBind : Set
 CoreBind = Bind CoreBndr
