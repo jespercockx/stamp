@@ -4,7 +4,7 @@ import Distribution.Simple
 import Distribution.Simple.LocalBuildInfo
 import Distribution.Simple.PreProcess
 import Distribution.Simple.Program
-import System.FilePath (takeDirectory, dropExtension)
+import System.FilePath (takeDirectory, takeFileName, dropExtension)
 
 
 main :: IO ()
@@ -19,10 +19,10 @@ agdaCompiler _bi lbi =
     runPreProcessor = mkSimplePreProcessor $ \inFile outFile verbosity ->
     rawSystemProgramConf verbosity agdaProgram (withPrograms lbi)
     ["-c", "--no-main", "--compile-dir=" ++ takeDirectory outFile, "--ghc-flag=-package ghc",
-     "-i", "/home/agda/agda-prelude/src", "-i", ".", -- TODO make this configurable
+     "-i", "/home/agda/agda-prelude/src", "-i", "src", -- TODO make this configurable
      inFile] >>
     -- Dummy output file
-    writeFile outFile ("module " ++ dropExtension inFile ++ " where\n")
+    writeFile outFile ("module " ++ dropExtension (takeFileName inFile) ++ " where\n")
     }
 
 
