@@ -32,6 +32,7 @@ library
                      , MAlonzo.Code.Prelude.Equality
                      , MAlonzo.Code.Prelude.Equality.Unsafe
                      , MAlonzo.Code.Prelude.Monad
+                     , MAlonzo.Code.Prelude.Product
                      , MAlonzo.RTE
 
   build-depends:       base >=4.7 && <4.8

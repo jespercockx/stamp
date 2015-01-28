@@ -39,9 +39,9 @@ instance
       bndrs (Var b) = [ b ]
       bndrs (Lit _) = []
       bndrs (App e₁ e₂) = bndrs e₁ ++ bndrs e₂
-      bndrs (Lam b e) = b ∷ bndrs e
+      bndrs (Lam b e) = {- b ∷ -} bndrs e
       bndrs (Let binds e) = binders binds ++ bndrs e
-      bndrs (Case e b _ alts) = b ∷ bndrs e
+      bndrs (Case e b _ alts) = {- b ∷ -} bndrs e
       bndrs (Cast e _) = bndrs e
       bndrs (Tick _ e) = bndrs e
       bndrs (Type _) = []
@@ -61,7 +61,7 @@ printBinders prog = mapM (putMsgS ∘ getOccString) (binders prog) >>
                     return tt
 
 agdaMetaPass : List CommandLineOption → CoreProgram → CoreM CoreProgram
-agdaMetaPass options bindings = printBinders bindings >> return bindings
+agdaMetaPass options bindings = return $ removeCasts bindings
 {-# COMPILED_EXPORT agdaMetaPass agdaMetaPass #-}
 
 
