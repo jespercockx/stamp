@@ -1,7 +1,11 @@
 module Main where
 
-
-foo a b c d e f g = (g + a)
+agda :: a
+agda = undefined
+{-# NOINLINE agda #-}
 
 main :: IO ()
-main = putStrLn ("Hello World" ++ show (foo 1 2 3 4 5 6 7))
+main = putStrLn ("Hello World: " ++ show (barry 3))
+
+barry :: a -> Bool
+barry = const agda

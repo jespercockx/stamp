@@ -2,9 +2,9 @@ module CoreSyn where
 
 {-# IMPORT GhcPlugins #-}
 
-open import Prelude.List using (List; [_]; map)
+open import Prelude.List using (List; [_]; []; map)
 open import Prelude.String using (String)
-open import Prelude.Equality using (_≡_; refl)
+open import Prelude.Equality using (_≡_; refl; _==_)
 open import Prelude.Decidable
 open import Prelude.Function
 open import Prelude.Empty
@@ -170,7 +170,7 @@ instance
            CoreExpr → CoreExpr
       go t f e with t e
       go t f e | yes p = f (e , p)
-      go t f (App e₁ e₂) | no¬p = App (go t f e₁) (go t f e₂)
+      go t f (App e₁ e₂) | no = App (go t f e₁) (go t f e₂)
       go t f (Lam b e) | no = Lam b (go t f e)
       go t f (Let binds e) | no = Let (transform t f binds) (go t f e)
       go t f (Case e b ty alts) | no = Case (go t f e) b ty (transform t f alts)
@@ -191,3 +191,30 @@ removeCasts = transform t f
     t _ = no
     f : Σ CoreExpr (λ e → ∃₂ λ e′ c → e ≡ Cast e′ c) → CoreExpr
     f (.(Cast e′ c) , e′ , c , refl) = e′
+
+{-# IMPORT Debug.Trace #-}
+
+postulate
+  trace         : {a : Set} → String → a → a
+  mkCoreConApps : DataCon → List CoreExpr → CoreExpr
+  trueDataCon   : DataCon
+  falseDataCon  : DataCon
+
+{-# COMPILED trace (\_ -> Debug.Trace.trace) #-}
+{-# COMPILED mkCoreConApps GhcPlugins.mkCoreConApps #-}
+{-# COMPILED trueDataCon GhcPlugins.trueDataCon #-}
+{-# COMPILED falseDataCon GhcPlugins.falseDataCon #-}
+
+replaceAgdaWith : CoreExpr → CoreProgram → CoreProgram
+replaceAgdaWith expr = transform t f
+  where
+    t : (e : CoreExpr) → WeakDec (∃₂ λ id ty → e ≡ App (Var id) (Type ty) × getOccString id ≡ "agda")
+    t (App (Var id) (Type ty)) with getOccString id == "agda"
+    t (App (Var id) (Type ty)) | yes p = yes (id , ty , refl , p)
+    t (App (Var id) (Type ty)) | no _  = no
+    t e = no
+    f : Σ CoreExpr (λ e → ∃₂ λ id ty → e ≡ App (Var id) (Type ty) × getOccString id ≡ "agda") → CoreExpr
+    f (.(App (Var id) (Type ty)) , id , ty , refl , _) = trace "REPLACING" expr
+
+replaceAgdaWithTrue : CoreProgram → CoreProgram
+replaceAgdaWithTrue = replaceAgdaWith (mkCoreConApps falseDataCon [])

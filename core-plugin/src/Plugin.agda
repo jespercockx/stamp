@@ -61,7 +61,7 @@ printBinders prog = mapM (putMsgS ∘ getOccString) (binders prog) >>
                     return tt
 
 agdaMetaPass : List CommandLineOption → CoreProgram → CoreM CoreProgram
-agdaMetaPass options bindings = return $ removeCasts bindings
+agdaMetaPass options prog = return $ replaceAgdaWithTrue prog
 {-# COMPILED_EXPORT agdaMetaPass agdaMetaPass #-}
 
 

@@ -15,7 +15,7 @@ build-type:          Simple
 -- extra-source-files:
 cabal-version:       >=1.10
 
-executable Test
+executable Main
   main-is:             Main.hs
   -- other-modules:
   -- other-extensions:
@@ -23,4 +23,4 @@ executable Test
                      , core-plugin
   -- hs-source-dirs:
   default-language:    Haskell2010
-  ghc-options:         -fplugin InstallPlugin -fforce-recomp -ddump-to-file -ddump-simpl -dsuppress-all
+  ghc-options:         -fplugin InstallPlugin -fforce-recomp -ddump-simpl -dsuppress-module-prefixes -dsuppress-idinfo -dcore-lint -ddump-to-file
