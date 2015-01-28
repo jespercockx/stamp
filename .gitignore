@@ -4,3 +4,4 @@ dist
 *.hi
 MAlonzo
 ttac
+flycheck_*.hs
