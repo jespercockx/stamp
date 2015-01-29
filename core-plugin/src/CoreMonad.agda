@@ -1,10 +1,10 @@
 module CoreMonad where
 
+open import Prelude.Monad public
+open import Prelude.Functor public
+open import Prelude.Applicative public
+open import Prelude.Unit using (Unit; tt) public
 open import Prelude.String using (String)
-open import Prelude.Unit using (Unit)
-open import Prelude.Monad using (Monad; defaultMonadApplicative; defaultMonadFunctor)
-open import Prelude.Applicative using (Applicative)
-open import Prelude.Functor using (Functor)
 
 postulate
   CoreM      : Set → Set

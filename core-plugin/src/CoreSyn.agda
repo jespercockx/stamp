@@ -2,12 +2,10 @@ module CoreSyn where
 
 {-# IMPORT GhcPlugins #-}
 
-open import Prelude.List using (List; [_]; []; map)
-open import Prelude.String using (String)
-open import Prelude.Equality using (_≡_; refl; _==_)
-open import Prelude.Decidable
-open import Prelude.Function
-open import Prelude.Empty
+open import CoreMonad
+
+open import Data.Traversable using (mapM)
+open import Prelude
 
 postulate
   Var'          : Set
@@ -126,37 +124,57 @@ data WeakDec {a} (P : Set a) : Set a where
   yes : P → WeakDec P
   no  : WeakDec P
 
+data Identity (a : Set) : Set where
+  identity : a → Identity a
+
+runIdentity : {a : Set} → Identity a → a
+runIdentity (identity x) = x
+
+instance
+  MonadIdentity : Monad Identity
+  MonadIdentity = record { return = identity ; _>>=_ = bindI }
+    where
+      bindI : {a b : Set} → Identity a → (a → Identity b) → Identity b
+      bindI m k = k (runIdentity m)
+
+  ApplicativeIdentity : Applicative Identity
+  ApplicativeIdentity = defaultMonadApplicative
+
+  FunctorIdentity : Functor Identity
+  FunctorIdentity = defaultMonadFunctor
+
 
 record Transform (core : Set) : Set₁ where
-  field transform : ∀ {P : CoreExpr → Set} →
+  field transform : ∀ {P : CoreExpr → Set} {F : Set → Set}
+                    {{_ : Applicative F}} →
                     (t : (e : CoreExpr) → WeakDec (P e)) →
-                    (f : Σ CoreExpr P → CoreExpr) →
-                    core → core
+                    (f : Σ CoreExpr P → F CoreExpr) →
+                    core → F core
 open Transform {{...}} public
 
 instance
   TransformList : {c : Set} {{_ : Transform c}} → Transform (List c)
-  TransformList = record { transform = λ t f → map (transform t f) }
+  TransformList = record { transform = λ t f → mapM (transform t f) }
 
   TransformTuple : {c₁ c₂ : Set} {{_ : Transform c₁}} {{_ : Transform c₂}} →
                    Transform (Tuple c₁ c₂)
   TransformTuple = record { transform = λ { t f (tuple c₁ c₂) →
-                                          tuple (transform t f c₁)
-                                                (transform t f c₂) } }
+                                          pure tuple <*> transform t f c₁
+                                                     <*> transform t f c₂ } }
 
   TransformTriple : {c₁ c₂ c₃ : Set} {{_ : Transform c₁}}
                     {{_ : Transform c₂}} {{_ : Transform c₃}} →
                    Transform (Triple c₁ c₂ c₃)
   TransformTriple = record { transform = λ { t f (triple c₁ c₂ c₃) →
-                                                 triple (transform t f c₁)
-                                                        (transform t f c₂)
-                                                        (transform t f c₃) } }
+                                           pure triple <*> transform t f c₁
+                                                       <*> transform t f c₂
+                                                       <*> transform t f c₃ } }
 
   TransformCoreBndr : Transform CoreBndr
-  TransformCoreBndr = record { transform = λ _ _ bndr → bndr }
+  TransformCoreBndr = record { transform = λ _ _ bndr → pure bndr }
 
   TransformAltCon : Transform AltCon
-  TransformAltCon = record { transform = λ _ _ altCon → altCon }
+  TransformAltCon = record { transform = λ _ _ altCon → pure altCon }
 
   {-# TERMINATING #-}
   TransformBind : Transform CoreBind
@@ -164,33 +182,34 @@ instance
   TransformCoreExpr : Transform CoreExpr
   TransformCoreExpr = record { transform = go }
     where
-      go : ∀ {P : CoreExpr → Set} →
+      go : ∀ {P : CoreExpr → Set}  {F : Set → Set}
+           {{_ : Applicative F}} →
            (t : (e : CoreExpr) → WeakDec (P e)) →
-           (f : Σ CoreExpr P → CoreExpr) →
-           CoreExpr → CoreExpr
+           (f : Σ CoreExpr P → F CoreExpr) →
+           CoreExpr → F CoreExpr
       go t f e with t e
       go t f e | yes p = f (e , p)
-      go t f (App e₁ e₂) | no = App (go t f e₁) (go t f e₂)
-      go t f (Lam b e) | no = Lam b (go t f e)
-      go t f (Let binds e) | no = Let (transform t f binds) (go t f e)
-      go t f (Case e b ty alts) | no = Case (go t f e) b ty (transform t f alts)
-      go t f (Cast e c) | no = Cast (go t f e) c
-      go t f (Tick ti e) | no = Tick ti (go t f e)
-      go t f e | no = e -- Var, Lit, Type, Coercion
+      go t f (App e₁ e₂) | no = pure App <*> go t f e₁ <*> go t f e₂
+      go t f (Lam b e) | no = pure (Lam b) <*> go t f e
+      go t f (Let binds e) | no = pure Let <*> transform t f binds <*> go t f e
+      go t f (Case e b ty alts) | no = pure Case <*> go t f e <*> pure b <*> pure ty <*> transform t f alts
+      go t f (Cast e c) | no = pure Cast <*> go t f e <*> pure c
+      go t f (Tick ti e) | no = pure (Tick ti) <*> go t f e
+      go t f e | no = pure e -- Var, Lit, Type, Coercion
 
   TransformBind = record {
-    transform = λ { t f (NonRec b e) → NonRec b (transform t f e)
-                  ; t f (Rec binds)  → Rec (transform t f binds) } }
+    transform = λ { t f (NonRec b e) → pure (NonRec b) <*> transform t f e
+                  ; t f (Rec binds)  → pure Rec <*> transform t f binds } }
 
 
 removeCasts : CoreProgram → CoreProgram
-removeCasts = transform t f
+removeCasts prog = runIdentity $ transform t f prog
   where
     t : (e : CoreExpr) → WeakDec (∃₂ λ e′ c → e ≡ Cast e′ c)
     t (Cast e′ c) = yes (e′ , c , refl)
     t _ = no
-    f : Σ CoreExpr (λ e → ∃₂ λ e′ c → e ≡ Cast e′ c) → CoreExpr
-    f (.(Cast e′ c) , e′ , c , refl) = e′
+    f : Σ CoreExpr (λ e → ∃₂ λ e′ c → e ≡ Cast e′ c) → Identity CoreExpr
+    f (.(Cast e′ c) , e′ , c , refl) = return e′
 
 {-# IMPORT Debug.Trace #-}
 
@@ -199,22 +218,29 @@ postulate
   mkCoreConApps : DataCon → List CoreExpr → CoreExpr
   trueDataCon   : DataCon
   falseDataCon  : DataCon
+  mkId          : String → Type' → CoreM Id
 
 {-# COMPILED trace (\_ -> Debug.Trace.trace) #-}
 {-# COMPILED mkCoreConApps GhcPlugins.mkCoreConApps #-}
 {-# COMPILED trueDataCon GhcPlugins.trueDataCon #-}
 {-# COMPILED falseDataCon GhcPlugins.falseDataCon #-}
+{-# COMPILED mkId (\s -> GhcPlugins.mkSysLocalM (GhcPlugins.fsLit s)) #-}
 
-replaceAgdaWith : CoreExpr → CoreProgram → CoreProgram
-replaceAgdaWith expr = transform t f
+
+replaceAgdaWith : (Type' → CoreM CoreExpr) → CoreProgram → CoreM CoreProgram
+replaceAgdaWith repl = transform t f
   where
     t : (e : CoreExpr) → WeakDec (∃₂ λ id ty → e ≡ App (Var id) (Type ty) × getOccString id ≡ "agda")
     t (App (Var id) (Type ty)) with getOccString id == "agda"
     t (App (Var id) (Type ty)) | yes p = yes (id , ty , refl , p)
     t (App (Var id) (Type ty)) | no _  = no
     t e = no
-    f : Σ CoreExpr (λ e → ∃₂ λ id ty → e ≡ App (Var id) (Type ty) × getOccString id ≡ "agda") → CoreExpr
-    f (.(App (Var id) (Type ty)) , id , ty , refl , _) = trace "REPLACING" expr
+    f : Σ CoreExpr (λ e → ∃₂ λ id ty → e ≡ App (Var id) (Type ty) × getOccString id ≡ "agda") → CoreM CoreExpr
+    f (.(App (Var id) (Type ty)) , id , ty , refl , _) = trace "REPLACING" (repl ty)
 
-replaceAgdaWithTrue : CoreProgram → CoreProgram
-replaceAgdaWithTrue = replaceAgdaWith (mkCoreConApps falseDataCon [])
+replaceAgdaWithTrue : CoreProgram → CoreM CoreProgram
+replaceAgdaWithTrue = replaceAgdaWith repl
+  where
+    repl : Type' → CoreM CoreExpr
+    repl ty = mkId "jos" ty >>= λ id → return $ Lam id (mkCoreConApps falseDataCon [])
+-- TODO ty is '(a -> Bool)', convert it to 'a'

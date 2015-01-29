@@ -55,13 +55,12 @@ instance
 
 
 
-
 printBinders : CoreProgram → CoreM Unit
 printBinders prog = mapM (putMsgS ∘ getOccString) (binders prog) >>
                     return tt
 
 agdaMetaPass : List CommandLineOption → CoreProgram → CoreM CoreProgram
-agdaMetaPass options prog = return $ replaceAgdaWithTrue prog
+agdaMetaPass options prog = replaceAgdaWithTrue prog
 {-# COMPILED_EXPORT agdaMetaPass agdaMetaPass #-}
 
 

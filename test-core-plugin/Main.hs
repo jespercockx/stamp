@@ -1,11 +1,11 @@
 module Main where
 
 agda :: a
-agda = undefined
+agda = error "Compiler plugin did not run correctly"
 {-# NOINLINE agda #-}
 
 main :: IO ()
 main = putStrLn ("Hello World: " ++ show (barry 3))
 
 barry :: a -> Bool
-barry = const agda
+barry = agda

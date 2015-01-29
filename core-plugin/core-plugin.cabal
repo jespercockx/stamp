@@ -23,6 +23,7 @@ library
                      , MAlonzo.Code.Plugin
                      , MAlonzo.Code.CoreMonad
                      , MAlonzo.Code.CoreSyn
+                     , MAlonzo.Code.Data.Traversable
                      , MAlonzo.Code.Prelude.List
                      , MAlonzo.Code.Prelude.Applicative
                      , MAlonzo.Code.Prelude.Ord
@@ -33,6 +34,8 @@ library
                      , MAlonzo.Code.Prelude.Equality.Unsafe
                      , MAlonzo.Code.Prelude.Monad
                      , MAlonzo.Code.Prelude.Product
+                     , MAlonzo.Code.Prelude.Vec
+                     , MAlonzo.Code.Prelude.Fin
                      , MAlonzo.RTE
 
   build-depends:       base >=4.7 && <4.8
