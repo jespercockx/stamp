@@ -36,7 +36,7 @@ instance
   BindersCoreExpr = record { binders = bndrs }
     where
       bndrs : CoreExpr → List CoreBndr
-      bndrs (Var b) = [ b ]
+      bndrs (Var' b) = [ b ]
       bndrs (Lit _) = []
       bndrs (App e₁ e₂) = bndrs e₁ ++ bndrs e₂
       bndrs (Lam b e) = {- b ∷ -} bndrs e
@@ -44,8 +44,8 @@ instance
       bndrs (Case e b _ alts) = {- b ∷ -} bndrs e
       bndrs (Cast e _) = bndrs e
       bndrs (Tick _ e) = bndrs e
-      bndrs (Type _) = []
-      bndrs (Coercion _) = []
+      bndrs (Type' _) = []
+      bndrs (Coercion' _) = []
 
   BindersCoreBind = record { binders = bndrs }
     where

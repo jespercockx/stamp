@@ -1,6 +1,7 @@
 module CoreSyn where
 
 {-# IMPORT GhcPlugins #-}
+{-# IMPORT TypeRep #-}
 
 open import CoreMonad
 
@@ -8,22 +9,24 @@ open import Data.Traversable using (mapM)
 open import Prelude
 
 postulate
-  Var'          : Set
-  OccName       : Set
-  Tickish       : Set → Set
-  DataCon       : Set -- TODO
-  Literal       : Set -- TODO
-  Type'         : Set -- TODO
-  Coercion'     : Set -- TODO
-  getOccString  : Var' -> String
+  Var          : Set
+  OccName      : Set
+  Tickish      : Set → Set
+  DataCon      : Set -- TODO
+  TyCon        : Set -- TODO
+  TyLit        : Set -- TODO
+  Literal      : Set -- TODO
+  Coercion     : Set -- TODO
+  getOccString : Var -> String
 
-{-# COMPILED_TYPE Var' GhcPlugins.Var #-}
+{-# COMPILED_TYPE Var GhcPlugins.Var #-}
 {-# COMPILED_TYPE OccName GhcPlugins.OccName #-}
 {-# COMPILED_TYPE Tickish GhcPlugins.Tickish #-}
 {-# COMPILED_TYPE DataCon GhcPlugins.DataCon #-}
+{-# COMPILED_TYPE TyCon GhcPlugins.TyCon #-}
 {-# COMPILED_TYPE Literal GhcPlugins.Literal #-}
-{-# COMPILED_TYPE Type' GhcPlugins.Type #-}
-{-# COMPILED_TYPE Coercion' GhcPlugins.Coercion #-}
+{-# COMPILED_TYPE TyLit TypeRep.TyLit #-}
+{-# COMPILED_TYPE Coercion GhcPlugins.Coercion #-}
 {-# COMPILED getOccString GhcPlugins.getOccString #-}
 
 
@@ -38,11 +41,29 @@ data Triple (a b c : Set) : Set where
   triple : a → b → c → Triple a b c
 {-# COMPILED_DATA Triple (,,) (,,) #-}
 
+data Type : Set
+
+KindOrType : Set
+KindOrType = Type
+
+data Type where
+  TyVarTy : Var → Type
+  AppTy   : Type → Type → Type
+  TyConApp : TyCon → List KindOrType → Type
+  FunTy : Type → Type → Type
+  ForAllTy : Var → Type → Type
+  LitTy : TyLit → Type
+
+{-# COMPILED_DATA Type TypeRep.Type
+    TypeRep.TyVarTy TypeRep.AppTy TypeRep.TyConApp
+    TypeRep.FunTy TypeRep.ForAllTy TypeRep.LitTy #-}
+
+
 CoreBndr : Set
-CoreBndr = Var'
+CoreBndr = Var
 
 Id : Set
-Id = Var'
+Id = Var
 
 data AltCon : Set where
   DataAlt : DataCon → AltCon
@@ -64,25 +85,25 @@ Arg : Set → Set
 Alt : Set → Set
 
 data Expr b where
-  Var : Id → Expr b
-  Lit : Literal → Expr b
-  App : Expr b → Arg b → Expr b
-  Lam : b → Expr b → Expr b
-  Let : Bind b → Expr b → Expr b
-  Case : Expr b → b → Type' → List (Alt b) → Expr b
-  Cast : Expr b → Coercion' → Expr b
-  Tick : Tickish Id → Expr b → Expr b
-  Type : Type' → Expr b
-  Coercion : Coercion' → Expr b
+  Var'  : Id → Expr b
+  Lit   : Literal → Expr b
+  App   : Expr b → Arg b → Expr b
+  Lam   : b → Expr b → Expr b
+  Let   : Bind b → Expr b → Expr b
+  Case  : Expr b → b → Type → List (Alt b) → Expr b
+  Cast  : Expr b → Coercion → Expr b
+  Tick  : Tickish Id → Expr b → Expr b
+  Type' : Type → Expr b
+  Coercion' : Coercion → Expr b
 
 Arg b = Expr b
 
 Alt b = Triple AltCon (List b) (Expr b)
 
 {-# COMPILED_DATA Expr GhcPlugins.Expr
-  GhcPlugins.Var GhcPlugins.Lit GhcPlugins.App GhcPlugins.Lam
-  GhcPlugins.Let GhcPlugins.Case GhcPlugins.Cast GhcPlugins.Tick
-  GhcPlugins.Type GhcPlugins.Coercion #-}
+    GhcPlugins.Var GhcPlugins.Lit GhcPlugins.App GhcPlugins.Lam
+    GhcPlugins.Let GhcPlugins.Case GhcPlugins.Cast GhcPlugins.Tick
+    GhcPlugins.Type GhcPlugins.Coercion #-}
 
 data Bind b where
   NonRec : b → Expr b → Bind b
@@ -106,6 +127,8 @@ CoreArg = Arg CoreBndr
 
 CoreAlt : Set
 CoreAlt = Alt CoreBndr
+
+
 
 module Exists where
   open import Prelude.Product public
@@ -195,7 +218,7 @@ instance
       go t f (Case e b ty alts) | no = pure Case <*> go t f e <*> pure b <*> pure ty <*> transform t f alts
       go t f (Cast e c) | no = pure Cast <*> go t f e <*> pure c
       go t f (Tick ti e) | no = pure (Tick ti) <*> go t f e
-      go t f e | no = pure e -- Var, Lit, Type, Coercion
+      go t f e | no = pure e -- Var', Lit, Type', Coercion'
 
   TransformBind = record {
     transform = λ { t f (NonRec b e) → pure (NonRec b) <*> transform t f e
@@ -218,29 +241,31 @@ postulate
   mkCoreConApps : DataCon → List CoreExpr → CoreExpr
   trueDataCon   : DataCon
   falseDataCon  : DataCon
-  mkId          : String → Type' → CoreM Id
+  mkId          : String → Type → CoreM Id
+  funResultTy   : Type → Type
+  funArgTy      : Type → Type
 
 {-# COMPILED trace (\_ -> Debug.Trace.trace) #-}
 {-# COMPILED mkCoreConApps GhcPlugins.mkCoreConApps #-}
 {-# COMPILED trueDataCon GhcPlugins.trueDataCon #-}
 {-# COMPILED falseDataCon GhcPlugins.falseDataCon #-}
 {-# COMPILED mkId (\s -> GhcPlugins.mkSysLocalM (GhcPlugins.fsLit s)) #-}
+{-# COMPILED funResultTy GhcPlugins.funResultTy #-}
+{-# COMPILED funArgTy GhcPlugins.funArgTy #-}
 
-
-replaceAgdaWith : (Type' → CoreM CoreExpr) → CoreProgram → CoreM CoreProgram
+replaceAgdaWith : (Type → CoreM CoreExpr) → CoreProgram → CoreM CoreProgram
 replaceAgdaWith repl = transform t f
   where
-    t : (e : CoreExpr) → WeakDec (∃₂ λ id ty → e ≡ App (Var id) (Type ty) × getOccString id ≡ "agda")
-    t (App (Var id) (Type ty)) with getOccString id == "agda"
-    t (App (Var id) (Type ty)) | yes p = yes (id , ty , refl , p)
-    t (App (Var id) (Type ty)) | no _  = no
+    t : (e : CoreExpr) → WeakDec (∃₂ λ id ty → e ≡ App (Var' id) (Type' ty) × getOccString id ≡ "agda")
+    t (App (Var' id) (Type' ty)) with getOccString id == "agda"
+    t (App (Var' id) (Type' ty)) | yes p = yes (id , ty , refl , p)
+    t (App (Var' id) (Type' ty)) | no _  = no
     t e = no
-    f : Σ CoreExpr (λ e → ∃₂ λ id ty → e ≡ App (Var id) (Type ty) × getOccString id ≡ "agda") → CoreM CoreExpr
-    f (.(App (Var id) (Type ty)) , id , ty , refl , _) = trace "REPLACING" (repl ty)
+    f : Σ CoreExpr (λ e → ∃₂ λ id ty → e ≡ App (Var' id) (Type' ty) × getOccString id ≡ "agda") → CoreM CoreExpr
+    f (.(App (Var' id) (Type' ty)) , id , ty , refl , _) = trace "REPLACING" (repl ty)
 
 replaceAgdaWithTrue : CoreProgram → CoreM CoreProgram
 replaceAgdaWithTrue = replaceAgdaWith repl
   where
-    repl : Type' → CoreM CoreExpr
-    repl ty = mkId "jos" ty >>= λ id → return $ Lam id (mkCoreConApps falseDataCon [])
--- TODO ty is '(a -> Bool)', convert it to 'a'
+    repl : Type → CoreM CoreExpr
+    repl ty = mkId "jos" (funArgTy ty) >>= λ id → return $ Lam id (mkCoreConApps falseDataCon [])
