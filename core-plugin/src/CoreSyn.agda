@@ -6,7 +6,7 @@ module CoreSyn where
 open import CoreMonad
 
 open import Data.Traversable using (mapM)
-open import Prelude
+open import MyPrelude
 
 postulate
   Var          : Set
@@ -130,42 +130,6 @@ CoreAlt = Alt CoreBndr
 
 
 
-module Exists where
-  open import Prelude.Product public
-  open import Agda.Primitive using (_⊔_)
-
-  ∃ : ∀ {a b} {A : Set a} → (A → Set b) → Set (a ⊔ b)
-  ∃ = Σ _
-
-  ∃₂ : ∀ {a b c} {A : Set a} {B : A → Set b}
-       (C : (x : A) → B x → Set c) → Set (a ⊔ b ⊔ c)
-  ∃₂ C = ∃ λ a → ∃ λ b → C a b
-
-open Exists public
-
-data WeakDec {a} (P : Set a) : Set a where
-  yes : P → WeakDec P
-  no  : WeakDec P
-
-data Identity (a : Set) : Set where
-  identity : a → Identity a
-
-runIdentity : {a : Set} → Identity a → a
-runIdentity (identity x) = x
-
-instance
-  MonadIdentity : Monad Identity
-  MonadIdentity = record { return = identity ; _>>=_ = bindI }
-    where
-      bindI : {a b : Set} → Identity a → (a → Identity b) → Identity b
-      bindI m k = k (runIdentity m)
-
-  ApplicativeIdentity : Applicative Identity
-  ApplicativeIdentity = defaultMonadApplicative
-
-  FunctorIdentity : Functor Identity
-  FunctorIdentity = defaultMonadFunctor
-
 
 record Transform (core : Set) : Set₁ where
   field transform : ∀ {P : CoreExpr → Set} {F : Set → Set}
@@ -224,15 +188,6 @@ instance
     transform = λ { t f (NonRec b e) → pure (NonRec b) <*> transform t f e
                   ; t f (Rec binds)  → pure Rec <*> transform t f binds } }
 
-
-removeCasts : CoreProgram → CoreProgram
-removeCasts prog = runIdentity $ transform t f prog
-  where
-    t : (e : CoreExpr) → WeakDec (∃₂ λ e′ c → e ≡ Cast e′ c)
-    t (Cast e′ c) = yes (e′ , c , refl)
-    t _ = no
-    f : Σ CoreExpr (λ e → ∃₂ λ e′ c → e ≡ Cast e′ c) → Identity CoreExpr
-    f (.(Cast e′ c) , e′ , c , refl) = return e′
 
 {-# IMPORT Debug.Trace #-}
 
