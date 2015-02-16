@@ -20,47 +20,6 @@ data Type (Σ : TyCxt) : Kind → Set where
   forAll : ∀ κ → Type (κ :: Σ) ∗ → Type Σ ∗
   lit : TyLit → Type Σ ∗
 
--- instance
---   ShiftableType : Shiftable Type
---   ShiftableType = record { shift = shiftT }
---     where
---       shiftT : (d cutoff : Nat) → Type → Type
---       shiftT d c (var k) with compare k c
---       shiftT d c (var k) | less _ = var k
---       shiftT d c (var k) | _ = var (k + d)
---       shiftT d c (t₁ $ t₂) = shiftT d c t₁ $ shiftT d c t₂
---       shiftT d c (t₁ ⇒ t₂) = shiftT d c t₁ ⇒ shiftT d c t₂
---       shiftT d c (forAll κ t) = forAll κ (shiftT d (suc c) t)
---       shiftT d c (lit l) = lit l
-
---   SubstitutableType : Substitutable Type Type
---   SubstitutableType = record { subst = substT }
---     where
---       substT : Subst Type → Type → Type
---       substT (i ↦ s) (var k) with compare k i
---       ... | equal _ = s
---       ... | _       = var k
---       substT σ (t₁ $ t₂) = substT σ t₁ $ substT σ t₂
---       substT σ (t₁ ⇒ t₂) = substT σ t₁ ⇒ substT σ t₂
---       substT (i ↦ s) (forAll κ t) = forAll κ (substT (suc i ↦ 1 ⇑ s) t)
---       substT σ (lit l) = lit l
-
-
--- shiftT : ∀ {Σ κ κ′} → (cutoff : Nat) → Type Σ κ → Type (κ′ :: Σ) κ
--- shiftT c (var k) = var (tl k)
--- shiftT c (t₁ $ t₂) = shiftT c t₁ $ shiftT c t₂
--- shiftT c (t₁ ⇒ t₂) = shiftT c t₁ ⇒ shiftT c t₂
--- shiftT c (forAll Κ t) = forAll Κ {!!}   -- (shiftT (suc c) {!!})
--- shiftT c (lit l) = lit l
-
--- substT : ∀ {Σ κ κ′} → Subst (Type Σ κ′) → Type (κ′ :: Σ) κ → Type Σ κ
--- substT (i ↦ s) (var hd) = s
--- substT (i ↦ s) (var (tl k)) = var k
--- substT σ (t₁ $ t₂) = substT σ t₁ $ substT σ t₂
--- substT σ (t₁ ⇒ t₂) = substT σ t₁ ⇒ substT σ t₂
--- substT (i ↦ s) (forAll κ t) = {!!} -- forAll κ (substT (suc i ↦ shiftT 0 s) t)
--- substT σ (lit x) = lit x
-
 
 Cxt : TyCxt → Set
 Cxt Σ = Context (Type Σ ∗)
@@ -78,23 +37,6 @@ weakenCxt (τ :: τs) p = weakenType τ p :: weakenCxt τs p
 
 shift : ∀ {κ κ′ Σ} → Type Σ κ → Type (κ′ ∷ Σ) κ
 shift τ = weakenType τ (⊆-skip ⊆-refl)
-
-
-substT : ∀ {Σ κ κ′} → κ′ ∈ Σ → Type Σ κ′ → Type Σ κ → Type Σ κ
-substT hd τ (var hd) = τ
-substT _ τ (var j) = var j
-substT p τ (t₁ $ t₂) = substT p τ t₁ $ substT p τ t₂
-substT p τ (t₁ ⇒ t₂) = substT p τ t₁ ⇒ substT p τ t₂
-substT p τ (forAll κ t) = forAll κ (substT (tl p) (weakenType τ (⊆-skip ⊆-refl)) t)
-substT _ _ (lit l) = lit l
-
-substT′ : ∀ {Σ Σ′ κ κ′} → κ′ ∈ Σ → Σ′ ⊆ Σ → Type Σ′ κ′ → Type Σ κ → Type Σ κ
-substT′ hd s τ (var hd) = weakenType τ s
-substT′ _ s τ (var j) = var j
-substT′ p s τ (t₁ $ t₂) = substT′ p s τ t₁ $ substT′ p s τ t₂
-substT′ p s τ (t₁ ⇒ t₂) = substT′ p s τ t₁ ⇒ substT′ p s τ t₂
-substT′ p s τ (forAll κ t) = forAll κ (substT′ (tl p) (⊆-keep s) (shift τ) t)
-substT′ _ _ _ (lit l) = lit l
 
 {-# TERMINATING #-}
 substTop : ∀ {Σ κ κ′} → Type Σ κ′ → Type (κ′ ∷ Σ) κ → Type Σ κ
