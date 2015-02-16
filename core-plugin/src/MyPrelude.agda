@@ -1,6 +1,6 @@
 module MyPrelude where
 
-open import Prelude public
+open import Prelude hiding (trans) public
 
 module Exists where
   open import Prelude.Product public
@@ -41,22 +41,33 @@ instance
 
 
 data _∈_ {A : Set} (x : A) : List A → Set where
-  hd : ∀ {xs}            → x ∈ (x :: xs)
-  tl : ∀ {y xs} → x ∈ xs → x ∈ (y :: xs)
+  hd : ∀ {xs}            → x ∈ (x ∷ xs)
+  tl : ∀ {y xs} → x ∈ xs → x ∈ (y ∷ xs)
 
+∈2i : ∀ {A : Set} {x : A} {xs : List A} → x ∈ xs → Nat
+∈2i hd = 0
+∈2i (tl p) = ∈2i p
 
-data _⊆_ {A : Set} : List A → List A → Set where
-  stop : [] ⊆ []
-  skip : ∀ {x xs ys} → xs ⊆ ys →        xs ⊆ (x :: ys)
-  keep : ∀ {x xs ys} → xs ⊆ ys → (x :: xs) ⊆ (x :: ys)
+_⊆_ : ∀ {A : Set} → List A → List A → Set
+xs ⊆ ys = ∀ {x} → x ∈ xs → x ∈ ys
+
+_⊈_ : ∀ {A : Set} → List A → List A → Set
+xs ⊈ ys = ¬ xs ⊆ ys
 
 ⊆-refl : ∀ {A : Set} {xs : List A} → xs ⊆ xs
-⊆-refl {xs = []} = stop
-⊆-refl {xs = (y :: ys)} = keep (⊆-refl {xs = ys})
+⊆-refl = id
 
-subInList : ∀ {A : Set} {x : A} {xs ys : List A} →
-            xs ⊆ ys → x ∈ xs → x ∈ ys
-subInList stop     q      = q
-subInList (skip p) q      = tl (subInList p q)
-subInList (keep p) hd     = hd
-subInList (keep p) (tl q) = tl (subInList p q)
+⊆-swap : ∀ {A : Set} {x y : A} {xs : List A} → (x ∷ y ∷ xs) ⊆ (y ∷ x ∷ xs)
+⊆-swap hd = tl hd
+⊆-swap (tl hd) = hd
+⊆-swap (tl (tl p)) = tl (tl p)
+
+⊆-skip : ∀ {A : Set} {x : A} {xs ys : List A} → xs ⊆ ys → xs ⊆ (x ∷ ys)
+⊆-skip p q = tl (p q)
+
+⊆-keep : ∀ {A : Set} {x : A} {xs ys : List A} → xs ⊆ ys → (x ∷ xs) ⊆ (x ∷ ys)
+⊆-keep p hd = hd
+⊆-keep p (tl q) = tl (p q)
+
+∈-over-⊆ : ∀ {A : Set} {x : A} {xs ys : List A} → xs ⊆ ys → x ∈ xs → x ∈ ys
+∈-over-⊆ p q = p q
