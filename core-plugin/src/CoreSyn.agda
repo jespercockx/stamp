@@ -2,6 +2,7 @@ module CoreSyn where
 
 {-# IMPORT GhcPlugins #-}
 {-# IMPORT TypeRep #-}
+{-# IMPORT TysPrim #-}
 
 open import CoreMonad
 
@@ -57,6 +58,18 @@ data Type where
 {-# COMPILED_DATA Type TypeRep.Type
     TypeRep.TyVarTy TypeRep.AppTy TypeRep.TyConApp
     TypeRep.FunTy TypeRep.ForAllTy TypeRep.LitTy #-}
+
+
+Kind : Set
+Kind = Type
+
+postulate
+  liftedTypeKind : Kind
+  mkArrowKind    : Kind → Kind → Kind
+
+{-# COMPILED liftedTypeKind GhcPlugins.liftedTypeKind #-}
+{-# COMPILED mkArrowKind TysPrim.mkArrowKind #-}
+
 
 
 CoreBndr : Set
@@ -128,9 +141,6 @@ CoreArg = Arg CoreBndr
 CoreAlt : Set
 CoreAlt = Alt CoreBndr
 
-
-
-
 record Transform (core : Set) : Set₁ where
   field transform : ∀ {P : CoreExpr → Set} {F : Set → Set}
                     {{_ : Applicative F}} →
@@ -197,6 +207,7 @@ postulate
   trueDataCon   : DataCon
   falseDataCon  : DataCon
   mkId          : String → Type → CoreM Id
+  mkTyVar       : String → Kind → CoreM Var
   funResultTy   : Type → Type
   funArgTy      : Type → Type
 
@@ -205,6 +216,11 @@ postulate
 {-# COMPILED trueDataCon GhcPlugins.trueDataCon #-}
 {-# COMPILED falseDataCon GhcPlugins.falseDataCon #-}
 {-# COMPILED mkId (\s -> GhcPlugins.mkSysLocalM (GhcPlugins.fsLit s)) #-}
+{-# COMPILED mkTyVar
+             (\s k -> do { uniq <- GhcPlugins.getUniqueM
+                         ; let { name = GhcPlugins.mkSysTvName uniq
+                                        (GhcPlugins.fsLit s) }
+                         ; return (GhcPlugins.mkTyVar name k) }) #-}
 {-# COMPILED funResultTy GhcPlugins.funResultTy #-}
 {-# COMPILED funArgTy GhcPlugins.funArgTy #-}
 

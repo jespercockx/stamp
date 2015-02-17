@@ -7,5 +7,5 @@ agda = error "Compiler plugin did not run correctly"
 main :: IO ()
 main = putStrLn ("Hello World: " ++ show (barry 3))
 
-barry :: a -> Bool
+barry :: a -> a
 barry = agda

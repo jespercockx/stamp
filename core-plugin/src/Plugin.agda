@@ -5,9 +5,11 @@ module Plugin where
 open import Prelude
 open import Data.Traversable using (mapM)
 
-
 open import CoreMonad
 open import CoreSyn
+
+open import TypedCore
+open ToCore
 
 postulate
   CommandLineOption : Set
@@ -59,8 +61,12 @@ printBinders : CoreProgram → CoreM Unit
 printBinders prog = mapM (putMsgS ∘ getOccString) (binders prog) >>
                     return tt
 
+idFun : CoreSyn.Type → CoreM CoreExpr
+idFun ty = (λ expr → App expr (Type' (funArgTy ty))) <$>
+           runToCoreM (toCore (ex₂ {[]} {[]}))
+
 agdaMetaPass : List CommandLineOption → CoreProgram → CoreM CoreProgram
-agdaMetaPass options prog = replaceAgdaWithTrue prog
+agdaMetaPass options prog = replaceAgdaWith idFun prog
 {-# COMPILED_EXPORT agdaMetaPass agdaMetaPass #-}
 
 

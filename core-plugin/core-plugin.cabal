@@ -20,10 +20,15 @@ library
   hs-source-dirs:      src
   exposed-modules:     InstallPlugin
                      , Plugin
+                     , ShowCore
                      , MAlonzo.Code.Plugin
                      , MAlonzo.Code.CoreMonad
                      , MAlonzo.Code.CoreSyn
+                     , MAlonzo.Code.UntypedCore
+                     , MAlonzo.Code.TypedCore
+                     , MAlonzo.Code.MyPrelude
                      , MAlonzo.Code.Data.Traversable
+                     , MAlonzo.Code.Control.Monad.State
                      , MAlonzo.Code.Prelude.List
                      , MAlonzo.Code.Prelude.Applicative
                      , MAlonzo.Code.Prelude.Ord

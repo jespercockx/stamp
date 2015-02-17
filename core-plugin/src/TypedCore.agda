@@ -1,10 +1,9 @@
 module TypedCore where
 
 open import MyPrelude hiding (_$_; [_])
-import UntypedCore as U
-open import UntypedCore using
-     (Kind; ∗; _⇒_; TyLit; Literal; Shiftable; _⇑_;
-      Substitutable; Subst; _↦_)
+open import UntypedCore
+  hiding (module Type; module Expr)
+  renaming (Type to UType; Expr to UExpr)
 
 Context : Set → Set
 Context = List
@@ -69,7 +68,7 @@ data Expr Σ Γ where
   _[_] : ∀ {κ τ₁} → Expr Σ Γ (forAll κ τ₁) → (τ₂ : Type Σ κ) →
          Expr Σ Γ (substTop τ₂ τ₁)
   lam  : ∀ τ₁ {τ₂} → Expr Σ (τ₁ :: Γ) τ₂ → Expr Σ Γ (τ₁ ⇒ τ₂)
-  Λ    : ∀ κ {τ}  → Expr (κ :: Σ) (weakenCxt Γ (⊆-skip ⊆-refl)) τ →
+  Λ    : ∀ κ {τ} → Expr (κ :: Σ) (weakenCxt Γ (⊆-skip ⊆-refl)) τ →
          Expr Σ Γ (forAll κ τ)
 
 
@@ -84,3 +83,100 @@ ex₃ = ex₂ [ Int ]
 
 ex₄ : ∀ {Σ Γ} → Expr Σ Γ Int
 ex₄ = ex₃ $ lit one
+
+
+eraseτ : ∀ {Σ κ} → Type Σ κ → UType
+eraseτ (var k)      = var (∈2i k)
+eraseτ (τ₁ $ τ₂)    = eraseτ τ₁ $ eraseτ τ₂
+eraseτ (τ₁ ⇒ τ₂)    = eraseτ τ₁ ⇒ eraseτ τ₂
+eraseτ (forAll κ τ) = forAll κ (eraseτ τ)
+eraseτ (lit l)      = lit l
+
+erase : ∀ {Σ Γ τ} → Expr Σ Γ τ → UExpr
+erase (var k)   = var (∈2i k)
+erase (lit l)   = lit l
+erase (e₁ $ e₂) = erase e₁ $ erase e₂
+erase (e [ τ ]) = erase e [ eraseτ τ ]
+erase (lam τ e) = lam (eraseτ τ) (erase e)
+erase (Λ κ e)   = Λ κ (erase e)
+
+
+module ToCore where
+
+  open import Control.Monad.State
+  open import CoreMonad
+  open import CoreSyn
+    renaming (Kind to CKind; Type to CType)
+    hiding (Expr)
+
+  DeBruijnEnv : Set
+  DeBruijnEnv = List Id
+
+  ToCoreM : Set → Set
+  ToCoreM = StateT (DeBruijnEnv × DeBruijnEnv) CoreM
+
+  runToCoreM : ∀ {A : Set} → ToCoreM A → CoreM A
+  runToCoreM m = fst <$> runStateT m ([] , [])
+
+  extendΣ : Kind → ToCoreM Var
+
+  extendΓ : ∀ {Σ κ} → Type Σ κ → ToCoreM Var
+
+  postulate
+    panic : ∀ {A : Set} → String → A
+  {-# COMPILED panic (\_ -> GhcPlugins.panic) #-}
+  -- TODO use dependent types to avoid the panic
+
+  lookupΣ : Nat → ToCoreM Id
+  lookupΣ i = gets fst >>= λ Σ →
+    maybe (panic "Index out of bounds") return (Σ ! i)
+
+
+  lookupΓ : Nat → ToCoreM Id
+  lookupΓ i = gets snd >>= λ Γ →
+    maybe (panic "Index out of bounds") return (Γ ! i)
+
+
+
+  record ToCore (A : Set) (B : Set) : Set where
+    field toCore : A → ToCoreM B
+  open ToCore {{...}} public
+
+  instance
+    ToCoreKind : ToCore Kind CKind
+    ToCoreKind = record { toCore = return ∘ tr }
+      where
+        tr : Kind → CKind
+        tr ∗ = liftedTypeKind
+        tr (κ₁ ⇒ κ₂) = mkArrowKind (tr κ₁) (tr κ₂)
+
+    ToCoreType : ∀ {Σ κ} → ToCore (Type Σ κ) CType
+    ToCoreType = record { toCore = tr }
+      where
+        tr : ∀ {Σ κ} → Type Σ κ → ToCoreM CType
+        tr (var k)      = TyVarTy <$> lookupΣ (∈2i k)
+        tr (τ₁ $ τ₂)    = AppTy <$> tr τ₁ <*> tr τ₂
+        tr (τ₁ ⇒ τ₂)    = FunTy <$> tr τ₁ <*> tr τ₂
+        tr (forAll κ τ) = ForAllTy <$> extendΣ κ <*> tr τ
+        tr (lit l)      = pure (LitTy l)
+
+    ToCoreExpr : ∀ {Σ Γ τ} → ToCore (Expr Σ Γ τ) CoreExpr
+    ToCoreExpr = record { toCore = tr }
+      where
+        tr : ∀ {Σ Γ τ} → Expr Σ Γ τ → ToCoreM CoreExpr
+        tr (var k)   = Var' <$> lookupΓ (∈2i k)
+        tr (lit l)   = pure (Lit l)
+        tr (e₁ $ e₂) = App <$> tr e₁ <*> tr e₂
+        tr (e [ τ ]) = App <$> tr e <*> (Type' <$> toCore τ)
+        tr (lam τ e) = Lam <$> extendΓ τ <*> tr e
+        tr (Λ κ e)   = Lam <$> extendΣ κ <*> tr e
+
+  extendΣ κ = toCore κ >>= λ ck →
+              lift (mkTyVar "tyvar" ck) >>= λ id →
+              modify (λ { (Σ , Γ) → id ∷ Σ , Γ }) >>
+              return id
+
+  extendΓ τ = toCore τ >>= λ ct →
+              lift (mkId "var" ct) >>= λ id →
+              modify (λ { (Σ , Γ) → Σ , id ∷ Γ }) >>
+              return id

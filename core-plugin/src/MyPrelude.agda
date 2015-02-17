@@ -46,7 +46,7 @@ data _∈_ {A : Set} (x : A) : List A → Set where
 
 ∈2i : ∀ {A : Set} {x : A} {xs : List A} → x ∈ xs → Nat
 ∈2i hd = 0
-∈2i (tl p) = ∈2i p
+∈2i (tl p) = suc (∈2i p)
 
 _⊆_ : ∀ {A : Set} → List A → List A → Set
 xs ⊆ ys = ∀ {x} → x ∈ xs → x ∈ ys
