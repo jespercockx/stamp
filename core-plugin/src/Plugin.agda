@@ -7,9 +7,9 @@ open import Data.Traversable using (mapM)
 
 open import CoreMonad
 open import CoreSyn
-
 open import TypedCore
 open ToCore
+open import MkPick using (pick1Of3)
 
 postulate
   CommandLineOption : Set
@@ -64,8 +64,13 @@ printBinders prog = mapM (putMsgS ∘ getOccString) (binders prog) >>
 idFun : CoreM CoreExpr
 idFun = runToCoreM (toCore (ex₂ {[]} {[]}))
 
+
+pick : CoreM CoreExpr
+pick = runToCoreM (toCore pick1Of3)
+
+
 agdaMetaPass : List CommandLineOption → CoreProgram → CoreM CoreProgram
-agdaMetaPass options prog = replaceAgdaWith′ idFun prog
+agdaMetaPass options prog = replaceAgdaWith′ pick prog
 {-# COMPILED_EXPORT agdaMetaPass agdaMetaPass #-}
 
 

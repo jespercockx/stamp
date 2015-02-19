@@ -27,6 +27,7 @@ library
                      , MAlonzo.Code.UntypedCore
                      , MAlonzo.Code.TypedCore
                      , MAlonzo.Code.MyPrelude
+                     , MAlonzo.Code.MkPick
                      , MAlonzo.Code.Data.Traversable
                      , MAlonzo.Code.Control.Monad.State
                      , MAlonzo.Code.Prelude.List
