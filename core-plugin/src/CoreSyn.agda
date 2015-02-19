@@ -208,6 +208,7 @@ postulate
   falseDataCon  : DataCon
   mkId          : String → Type → CoreM Id
   mkTyVar       : String → Kind → CoreM Var
+  isTyVar       : Var → Bool
   funResultTy   : Type → Type
   funArgTy      : Type → Type
 
@@ -221,6 +222,7 @@ postulate
                          ; let { name = GhcPlugins.mkSysTvName uniq
                                         (GhcPlugins.fsLit s) }
                          ; return (GhcPlugins.mkTyVar name k) }) #-}
+{-# COMPILED isTyVar GhcPlugins.isTyVar #-}
 {-# COMPILED funResultTy GhcPlugins.funResultTy #-}
 {-# COMPILED funArgTy GhcPlugins.funArgTy #-}
 
@@ -240,3 +242,21 @@ replaceAgdaWithTrue = replaceAgdaWith repl
   where
     repl : Type → CoreM CoreExpr
     repl ty = mkId "jos" (funArgTy ty) >>= λ id → return $ Lam id (mkCoreConApps falseDataCon [])
+
+
+-- Variant of replaceAgdaWith that removes all the type abstractions
+-- and type applications performed by GHC.
+replaceAgdaWith′ : CoreM CoreExpr → CoreProgram → CoreM CoreProgram
+replaceAgdaWith′ repl = transform t f
+  where
+    t : (e : CoreExpr) → WeakDec ⊤
+    t (Var' id) with getOccString id == "agda"
+    ... | yes p  = yes tt
+    ... | no _   = no
+    t (App e' (Type' _))   = t e'
+    t (Lam v e') with isTyVar v
+    ... | true  = t e'
+    ... | false = no
+    t _ = no
+    f : Σ CoreExpr (λ e → ⊤) → CoreM CoreExpr
+    f _ = repl

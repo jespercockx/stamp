@@ -61,12 +61,11 @@ printBinders : CoreProgram → CoreM Unit
 printBinders prog = mapM (putMsgS ∘ getOccString) (binders prog) >>
                     return tt
 
-idFun : CoreSyn.Type → CoreM CoreExpr
-idFun ty = (λ expr → App expr (Type' (funArgTy ty))) <$>
-           runToCoreM (toCore (ex₂ {[]} {[]}))
+idFun : CoreM CoreExpr
+idFun = runToCoreM (toCore (ex₂ {[]} {[]}))
 
 agdaMetaPass : List CommandLineOption → CoreProgram → CoreM CoreProgram
-agdaMetaPass options prog = replaceAgdaWith idFun prog
+agdaMetaPass options prog = replaceAgdaWith′ idFun prog
 {-# COMPILED_EXPORT agdaMetaPass agdaMetaPass #-}
 
 
