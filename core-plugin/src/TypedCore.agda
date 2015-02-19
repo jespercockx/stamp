@@ -11,6 +11,7 @@ Context = List
 TyCxt : Set
 TyCxt = Context Kind
 
+infixr 2 _⇒_
 
 data Type (Σ : TyCxt) : Kind → Set where
   var : ∀ {κ} → κ ∈ Σ → Type Σ κ
