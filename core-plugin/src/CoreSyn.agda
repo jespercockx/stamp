@@ -9,6 +9,11 @@ open import CoreMonad
 open import Data.Traversable using (mapM)
 open import MyPrelude
 
+private
+  postulate
+    error : ∀ {a} {A : Set a} → String → A
+    todo  : ∀ {a} {A : Set a} → String → A
+
 postulate
   Var          : Set
   OccName      : Set
@@ -16,18 +21,26 @@ postulate
   DataCon      : Set -- TODO
   TyCon        : Set -- TODO
   TyLit        : Set -- TODO
-  Literal      : Set -- TODO
   Coercion     : Set -- TODO
-  getOccString : Var -> String
+  ByteString   : Set
+  Int          : Set
+  Integer      : Set
+  Rational     : Set
+  FastString   : Set
+  getOccString : Var → String
 
 {-# COMPILED_TYPE Var GhcPlugins.Var #-}
 {-# COMPILED_TYPE OccName GhcPlugins.OccName #-}
 {-# COMPILED_TYPE Tickish GhcPlugins.Tickish #-}
 {-# COMPILED_TYPE DataCon GhcPlugins.DataCon #-}
 {-# COMPILED_TYPE TyCon GhcPlugins.TyCon #-}
-{-# COMPILED_TYPE Literal GhcPlugins.Literal #-}
 {-# COMPILED_TYPE TyLit TypeRep.TyLit #-}
 {-# COMPILED_TYPE Coercion GhcPlugins.Coercion #-}
+{-# COMPILED_TYPE ByteString GhcPlugins.ByteString #-}
+{-# COMPILED_TYPE Int GhcPlugins.Int #-}
+{-# COMPILED_TYPE Integer GhcPlugins.Integer #-}
+{-# COMPILED_TYPE Rational GhcPlugins.Rational #-}
+{-# COMPILED_TYPE FastString GhcPlugins.FastString #-}
 {-# COMPILED getOccString GhcPlugins.getOccString #-}
 
 
@@ -48,12 +61,12 @@ KindOrType : Set
 KindOrType = Type
 
 data Type where
-  TyVarTy : Var → Type
-  AppTy   : Type → Type → Type
+  TyVarTy  : Var → Type
+  AppTy    : Type → Type → Type
   TyConApp : TyCon → List KindOrType → Type
-  FunTy : Type → Type → Type
+  FunTy    : Type → Type → Type
   ForAllTy : Var → Type → Type
-  LitTy : TyLit → Type
+  LitTy    : TyLit → Type
 
 {-# COMPILED_DATA Type TypeRep.Type
     TypeRep.TyVarTy TypeRep.AppTy TypeRep.TyConApp
@@ -70,7 +83,41 @@ postulate
 {-# COMPILED liftedTypeKind GhcPlugins.liftedTypeKind #-}
 {-# COMPILED mkArrowKind TysPrim.mkArrowKind #-}
 
+data FunctionOrData : Set where
+  IsFunction : FunctionOrData
+  IsData     : FunctionOrData
 
+{-# COMPILED_DATA FunctionOrData GhcPlugins.FunctionOrData
+    GhcPlugins.IsFunction GhcPlugins.IsData #-}
+
+data Literal : Set where
+  MachChar     : Char → Literal
+  MachStr      : ByteString → Literal
+  MachNullAddr : Literal
+  MachInt      : Integer → Literal
+  MachInt64    : Integer → Literal
+  MachWord     : Integer → Literal
+  MachWord64   : Integer → Literal
+  MachFloat    : Rational → Literal
+  MachDouble   : Rational → Literal
+  MachLabel    : FastString → Maybe Int → FunctionOrData → Literal
+  LitInteger   : Integer → Type → Literal
+
+{-# COMPILED_DATA Literal GhcPlugins.Literal
+    GhcPlugins.MachChar GhcPlugins.MachStr GhcPlugins.MachNullAddr
+    GhcPlugins.MachInt GhcPlugins.MachInt64 GhcPlugins.MachWord
+    GhcPlugins.MachWord64 GhcPlugins.MachFloat GhcPlugins.MachDouble
+    GhcPlugins.MachLabel GhcPlugins.LitInteger #-}
+
+postulate
+  mkMachChar   : Char → Literal
+  mkMachString : String → Literal
+  mkMachInt    : Integer → Literal -- Normally DynFlags → Integer → Literal
+
+
+{-# COMPILED mkMachChar GhcPlugins.mkMachChar #-}
+{-# COMPILED mkMachString GhcPlugins.mkMachString #-}
+{-# COMPILED mkMachInt GhcPlugins.MachInt #-}
 
 CoreBndr : Set
 CoreBndr = Var
@@ -212,6 +259,9 @@ postulate
   funResultTy   : Type → Type
   funArgTy      : Type → Type
 
+
+
+
 {-# COMPILED trace (\_ -> Debug.Trace.trace) #-}
 {-# COMPILED mkCoreConApps GhcPlugins.mkCoreConApps #-}
 {-# COMPILED trueDataCon GhcPlugins.trueDataCon #-}
@@ -225,6 +275,19 @@ postulate
 {-# COMPILED isTyVar GhcPlugins.isTyVar #-}
 {-# COMPILED funResultTy GhcPlugins.funResultTy #-}
 {-# COMPILED funArgTy GhcPlugins.funArgTy #-}
+
+
+postulate
+  charTyCon : TyCon
+  listTyCon : TyCon
+  intTyCon  : TyCon
+  unitTyCon : TyCon
+
+{-# COMPILED charTyCon GhcPlugins.charTyCon #-}
+{-# COMPILED listTyCon GhcPlugins.listTyCon #-}
+{-# COMPILED intTyCon GhcPlugins.intTyCon #-}
+{-# COMPILED unitTyCon GhcPlugins.unitTyCon #-}
+
 
 replaceAgdaWith : (Type → CoreM CoreExpr) → CoreProgram → CoreM CoreProgram
 replaceAgdaWith repl = transform t f

@@ -3,7 +3,8 @@ module TypedCore where
 open import MyPrelude hiding (_$_; [_])
 open import UntypedCore
   hiding (module Type; module Expr)
-  renaming (Type to UType; Expr to UExpr)
+  renaming (Type to UType; Expr to UExpr; TyCon to UTyCon;
+            Literal to ULiteral)
 
 Context : Set → Set
 Context = List
@@ -11,14 +12,23 @@ Context = List
 TyCxt : Set
 TyCxt = Context Kind
 
+data TyCon (κ : Kind) : Set where
+  tyCon : UTyCon → TyCon κ
+
+unTyCon : ∀ {κ} → TyCon κ → UTyCon
+unTyCon (tyCon u) = u
+
+
 infixr 2 _⇒_
 
+
 data Type (Σ : TyCxt) : Kind → Set where
-  var : ∀ {κ} → κ ∈ Σ → Type Σ κ
-  _$_ : ∀ {κ₁ κ₂} → Type Σ (κ₁ ⇒ κ₂) → Type Σ κ₁ → Type Σ κ₂
-  _⇒_ : Type Σ ∗ → Type Σ ∗ → Type Σ ∗
-  forAll : ∀ κ → Type (κ :: Σ) ∗ → Type Σ ∗
-  lit : TyLit → Type Σ ∗
+  var    : ∀ {κ} → κ ∈ Σ → Type Σ κ
+  con    : ∀ {κ} → TyCon κ → Type Σ κ
+  _$_    : ∀ {κ₁ κ₂} → Type Σ (κ₁ ⇒ κ₂) → Type Σ κ₁ → Type Σ κ₂
+  _⇒_    : Type Σ ∗ → Type Σ ∗ → Type Σ ∗
+  forAll : ∀ κ → Type (κ ∷ Σ) ∗ → Type Σ ∗
+  lit    : TyLit → Type Σ ∗
 
 
 Cxt : TyCxt → Set
@@ -26,6 +36,7 @@ Cxt Σ = Context (Type Σ ∗)
 
 weakenType : ∀ {Σ₁ Σ₂ κ} → Type Σ₁ κ → Σ₁ ⊆ Σ₂ → Type Σ₂ κ
 weakenType (var i)      p = var (∈-over-⊆ p i)
+weakenType (con c)      p = con c
 weakenType (τ₁ $ τ₂)    p = weakenType τ₁ p $ weakenType τ₂ p
 weakenType (τ₁ ⇒ τ₂)    p = weakenType τ₁ p ⇒ weakenType τ₂ p
 weakenType (forAll κ τ) p = forAll κ (weakenType τ (⊆-keep p))
@@ -40,31 +51,25 @@ shift τ = weakenType τ (⊆-skip ⊆-refl)
 
 {-# TERMINATING #-}
 substTop : ∀ {Σ κ κ′} → Type Σ κ′ → Type (κ′ ∷ Σ) κ → Type Σ κ
-substTop τ (var hd) = τ
+substTop τ (var hd)     = τ
 substTop τ (var (tl x)) = var x
-substTop τ (t₁ $ t₂) = substTop τ t₁ $ substTop τ t₂
-substTop τ (t₁ ⇒ t₂) = substTop τ t₁ ⇒ substTop τ t₂
+substTop τ (con c)      = con c
+substTop τ (t₁ $ t₂)    = substTop τ t₁ $ substTop τ t₂
+substTop τ (t₁ ⇒ t₂)    = substTop τ t₁ ⇒ substTop τ t₂
 substTop τ (forAll κ t) = forAll κ (substTop (weakenType τ (⊆-skip ⊆-refl))
                                              (weakenType t ⊆-swap))
-substTop τ (lit x) = lit x
+substTop τ (lit x)      = lit x
 
-data Expr (Σ : TyCxt) (Γ : Cxt Σ) : Type Σ ∗ → Set
+data Literal (Σ : TyCxt) (τ : Type Σ ∗) : Set where
+  lit : ULiteral → Literal Σ τ
 
-
-postulate
-  intLit : TyLit
-  one : Literal
-
-Int : ∀ {Σ} → Type Σ ∗
-Int = lit intLit
-
-litType : ∀ {Σ} → Literal → Type Σ ∗
-litType one = Int -- TEMPORARY
+unLit : ∀ {Σ} {τ : Type Σ ∗} → Literal Σ τ → ULiteral
+unLit (lit u) = u
 
 
-data Expr Σ Γ where
+data Expr (Σ : TyCxt) (Γ : Cxt Σ) : Type Σ ∗ → Set where
   var  : ∀ {τ} → τ ∈ Γ → Expr Σ Γ τ
-  lit  : (l : Literal) → Expr Σ Γ (litType l)
+  lit  : ∀ {τ} → Literal Σ τ → Expr Σ Γ τ
   _$_  : ∀ {τ₁ τ₂} → Expr Σ Γ (τ₁ ⇒ τ₂) → Expr Σ Γ τ₁ → Expr Σ Γ τ₂
   _[_] : ∀ {κ τ₁} → Expr Σ Γ (forAll κ τ₁) → (τ₂ : Type Σ κ) →
          Expr Σ Γ (substTop τ₂ τ₁)
@@ -73,8 +78,8 @@ data Expr Σ Γ where
          Expr Σ Γ (forAll κ τ)
 
 
-ex₁ : ∀ {Σ Γ} → Expr Σ Γ (Int ⇒ Int)
-ex₁ = lam Int (var hd)
+-- ex₁ : ∀ {Σ Γ} → Expr Σ Γ (Int ⇒ Int)
+-- ex₁ = lam Int (var hd)
 
 ex₂ : ∀ {Σ Γ} → Expr Σ Γ (forAll ∗ (var hd ⇒ var hd))
 ex₂ = Λ ∗ (lam (var hd) (var hd))
@@ -88,6 +93,7 @@ ex₄ = ex₃ $ lit one
 
 eraseτ : ∀ {Σ κ} → Type Σ κ → UType
 eraseτ (var k)      = var (∈2i k)
+eraseτ (con c)      = con (unTyCon c)
 eraseτ (τ₁ $ τ₂)    = eraseτ τ₁ $ eraseτ τ₂
 eraseτ (τ₁ ⇒ τ₂)    = eraseτ τ₁ ⇒ eraseτ τ₂
 eraseτ (forAll κ τ) = forAll κ (eraseτ τ)
@@ -95,7 +101,7 @@ eraseτ (lit l)      = lit l
 
 erase : ∀ {Σ Γ τ} → Expr Σ Γ τ → UExpr
 erase (var k)   = var (∈2i k)
-erase (lit l)   = lit l
+erase (lit l)   = lit (unLit l)
 erase (e₁ $ e₂) = erase e₁ $ erase e₂
 erase (e [ τ ]) = erase e [ eraseτ τ ]
 erase (lam τ e) = lam (eraseτ τ) (erase e)
@@ -156,6 +162,8 @@ module ToCore where
       where
         tr : ∀ {Σ κ} → Type Σ κ → ToCoreM CType
         tr (var k)      = TyVarTy <$> lookupΣ (∈2i k)
+        tr (con c)      = pure (TyConApp (unTyCon c) [])
+        -- TODO use TyConApp : TyCon → List KindOrType → Type
         tr (τ₁ $ τ₂)    = AppTy <$> tr τ₁ <*> tr τ₂
         tr (τ₁ ⇒ τ₂)    = FunTy <$> tr τ₁ <*> tr τ₂
         tr (forAll κ τ) = ForAllTy <$> extendΣ κ <*> tr τ
@@ -166,7 +174,7 @@ module ToCore where
       where
         tr : ∀ {Σ Γ τ} → Expr Σ Γ τ → ToCoreM CoreExpr
         tr (var k)   = Var' <$> lookupΓ (∈2i k)
-        tr (lit l)   = pure (Lit l)
+        tr (lit l)   = pure (Lit (unLit l))
         tr (e₁ $ e₂) = App <$> tr e₁ <*> tr e₂
         tr (e [ τ ]) = App <$> tr e <*> (Type' <$> toCore τ)
         tr (lam τ e) = Lam <$> extendΓ τ <*> tr e

@@ -2,7 +2,7 @@ module UntypedCore where
 
 open import MyPrelude hiding (_$_; [_])
 open import CoreSyn
-  using (Var; TyCon; KindOrType; TyLit; Id; Literal) public
+  using (TyCon; TyLit; Literal) public
 open import CoreSyn
   hiding (module Type; module Expr; Expr)
   renaming (Kind to CKind; Type to CType)
@@ -12,6 +12,7 @@ data Kind : Set where
   _⇒_ : Kind → Kind → Kind
 
 data Type : Set where
+  con    : TyCon → Type
   var    : Nat → Type
   _$_    : Type → Type → Type
   _⇒_    : Type → Type → Type
