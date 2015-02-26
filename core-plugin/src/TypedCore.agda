@@ -18,17 +18,21 @@ data TyCon (κ : Kind) : Set where
 unTyCon : ∀ {κ} → TyCon κ → UTyCon
 unTyCon (tyCon u) = u
 
+-- TODO remove TyCon?
+data ForeignTy (κ : Kind) : Set where
+  foreign : NameSpace → String → String → ForeignTy κ
+
 
 infixr 2 _⇒_
 
-
 data Type (Σ : TyCxt) : Kind → Set where
-  var    : ∀ {κ} → κ ∈ Σ → Type Σ κ
-  con    : ∀ {κ} → TyCon κ → Type Σ κ
-  _$_    : ∀ {κ₁ κ₂} → Type Σ (κ₁ ⇒ κ₂) → Type Σ κ₁ → Type Σ κ₂
-  _⇒_    : Type Σ ∗ → Type Σ ∗ → Type Σ ∗
-  forAll : ∀ κ → Type (κ ∷ Σ) ∗ → Type Σ ∗
-  lit    : TyLit → Type Σ ∗
+  var     : ∀ {κ} → κ ∈ Σ → Type Σ κ
+  con     : ∀ {κ} → TyCon κ → Type Σ κ
+  _$_     : ∀ {κ₁ κ₂} → Type Σ (κ₁ ⇒ κ₂) → Type Σ κ₁ → Type Σ κ₂
+  _⇒_     : Type Σ ∗ → Type Σ ∗ → Type Σ ∗
+  forAll  : ∀ κ → Type (κ ∷ Σ) ∗ → Type Σ ∗
+  lit     : TyLit → Type Σ ∗
+  foreign : ∀ {κ} → ForeignTy κ → Type Σ κ
 
 
 Cxt : TyCxt → Set
@@ -41,6 +45,7 @@ weakenType (τ₁ $ τ₂)    p = weakenType τ₁ p $ weakenType τ₂ p
 weakenType (τ₁ ⇒ τ₂)    p = weakenType τ₁ p ⇒ weakenType τ₂ p
 weakenType (forAll κ τ) p = forAll κ (weakenType τ (⊆-keep p))
 weakenType (lit l)      p = lit l
+weakenType (foreign f)  p = foreign f
 
 weakenCxt : ∀ {Σ₁ Σ₂} → Cxt Σ₁ → Σ₁ ⊆ Σ₂ → Cxt Σ₂
 weakenCxt [] _ = []
@@ -58,7 +63,8 @@ substTop τ (t₁ $ t₂)    = substTop τ t₁ $ substTop τ t₂
 substTop τ (t₁ ⇒ t₂)    = substTop τ t₁ ⇒ substTop τ t₂
 substTop τ (forAll κ t) = forAll κ (substTop (weakenType τ (⊆-skip ⊆-refl))
                                              (weakenType t ⊆-swap))
-substTop τ (lit x)      = lit x
+substTop τ (lit l)      = lit l
+substTop τ (foreign f)  = foreign f
 
 data Literal (Σ : TyCxt) (τ : Type Σ ∗) : Set where
   lit : ULiteral → Literal Σ τ
@@ -66,16 +72,19 @@ data Literal (Σ : TyCxt) (τ : Type Σ ∗) : Set where
 unLit : ∀ {Σ} {τ : Type Σ ∗} → Literal Σ τ → ULiteral
 unLit (lit u) = u
 
+data ForeignExpr (Σ : TyCxt) (τ : Type Σ ∗) : Set where
+  foreign : NameSpace → String → String → ForeignExpr Σ τ
 
 data Expr (Σ : TyCxt) (Γ : Cxt Σ) : Type Σ ∗ → Set where
-  var  : ∀ {τ} → τ ∈ Γ → Expr Σ Γ τ
-  lit  : ∀ {τ} → Literal Σ τ → Expr Σ Γ τ
-  _$_  : ∀ {τ₁ τ₂} → Expr Σ Γ (τ₁ ⇒ τ₂) → Expr Σ Γ τ₁ → Expr Σ Γ τ₂
-  _[_] : ∀ {κ τ₁} → Expr Σ Γ (forAll κ τ₁) → (τ₂ : Type Σ κ) →
-         Expr Σ Γ (substTop τ₂ τ₁)
-  lam  : ∀ τ₁ {τ₂} → Expr Σ (τ₁ :: Γ) τ₂ → Expr Σ Γ (τ₁ ⇒ τ₂)
-  Λ    : ∀ κ {τ} → Expr (κ :: Σ) (weakenCxt Γ (⊆-skip ⊆-refl)) τ →
-         Expr Σ Γ (forAll κ τ)
+  var     : ∀ {τ} → τ ∈ Γ → Expr Σ Γ τ
+  lit     : ∀ {τ} → Literal Σ τ → Expr Σ Γ τ
+  _$_     : ∀ {τ₁ τ₂} → Expr Σ Γ (τ₁ ⇒ τ₂) → Expr Σ Γ τ₁ → Expr Σ Γ τ₂
+  _[_]    : ∀ {κ τ₁} → Expr Σ Γ (forAll κ τ₁) → (τ₂ : Type Σ κ) →
+            Expr Σ Γ (substTop τ₂ τ₁)
+  lam     : ∀ τ₁ {τ₂} → Expr Σ (τ₁ :: Γ) τ₂ → Expr Σ Γ (τ₁ ⇒ τ₂)
+  Λ       : ∀ κ {τ} → Expr (κ :: Σ) (weakenCxt Γ (⊆-skip ⊆-refl)) τ →
+            Expr Σ Γ (forAll κ τ)
+  foreign : ∀ {τ} → ForeignExpr Σ τ → Expr Σ Γ τ
 
 
 -- ex₁ : ∀ {Σ Γ} → Expr Σ Γ (Int ⇒ Int)
@@ -84,37 +93,49 @@ data Expr (Σ : TyCxt) (Γ : Cxt Σ) : Type Σ ∗ → Set where
 ex₂ : ∀ {Σ Γ} → Expr Σ Γ (forAll ∗ (var hd ⇒ var hd))
 ex₂ = Λ ∗ (lam (var hd) (var hd))
 
-ex₃ : ∀ {Σ Γ} → Expr Σ Γ (Int ⇒ Int)
-ex₃ = ex₂ [ Int ]
 
-ex₄ : ∀ {Σ Γ} → Expr Σ Γ Int
-ex₄ = ex₃ $ lit one
 
+
+pattern ffor ns q s = foreign (foreign ns q s)
 
 eraseτ : ∀ {Σ κ} → Type Σ κ → UType
-eraseτ (var k)      = var (∈2i k)
-eraseτ (con c)      = con (unTyCon c)
-eraseτ (τ₁ $ τ₂)    = eraseτ τ₁ $ eraseτ τ₂
-eraseτ (τ₁ ⇒ τ₂)    = eraseτ τ₁ ⇒ eraseτ τ₂
-eraseτ (forAll κ τ) = forAll κ (eraseτ τ)
-eraseτ (lit l)      = lit l
+eraseτ (var k)       = var (∈2i k)
+eraseτ (con c)       = con (unTyCon c)
+eraseτ (τ₁ $ τ₂)     = eraseτ τ₁ $ eraseτ τ₂
+eraseτ (τ₁ ⇒ τ₂)     = eraseτ τ₁ ⇒ eraseτ τ₂
+eraseτ (forAll κ τ)  = forAll κ (eraseτ τ)
+eraseτ (lit l)       = lit l
+eraseτ (ffor ns q s) = foreign ns q s
 
 erase : ∀ {Σ Γ τ} → Expr Σ Γ τ → UExpr
-erase (var k)   = var (∈2i k)
-erase (lit l)   = lit (unLit l)
-erase (e₁ $ e₂) = erase e₁ $ erase e₂
-erase (e [ τ ]) = erase e [ eraseτ τ ]
-erase (lam τ e) = lam (eraseτ τ) (erase e)
-erase (Λ κ e)   = Λ κ (erase e)
-
+erase (var k)       = var (∈2i k)
+erase (lit l)       = lit (unLit l)
+erase (e₁ $ e₂)     = erase e₁ $ erase e₂
+erase (e [ τ ])     = erase e [ eraseτ τ ]
+erase (lam τ e)     = lam (eraseτ τ) (erase e)
+erase (Λ κ e)       = Λ κ (erase e)
+erase (ffor ns q s) = foreign ns q s
 
 module ToCore where
+
+  {-# IMPORT TcRnMonad #-}
+  {-# IMPORT RnEnv #-}
+  {-# IMPORT TcEnv #-}
 
   open import Control.Monad.State
   open import CoreMonad
   open import CoreSyn
     renaming (Kind to CKind; Type to CType)
     hiding (Expr)
+
+  postulate
+    lookupForeign : NameSpace → String → String → CoreM Id
+  {-# COMPILED lookupForeign (\ns q s ->
+      do { let { rdr_name = GhcPlugins.mkUnqual ns (GhcPlugins.mkFastString s) }
+         ; hsc_env <- GhcPlugins.getHscEnv
+         ; GhcPlugins.liftIO $ TcRnMonad.initTcForLookup hsc_env $ do {
+           name <- RnEnv.lookupOccRn rdr_name
+         ; TcEnv.tcLookupId name }}) #-}
 
   DeBruijnEnv : Set
   DeBruijnEnv = List Id
@@ -161,24 +182,27 @@ module ToCore where
     ToCoreType = record { toCore = tr }
       where
         tr : ∀ {Σ κ} → Type Σ κ → ToCoreM CType
-        tr (var k)      = TyVarTy <$> lookupΣ (∈2i k)
-        tr (con c)      = pure (TyConApp (unTyCon c) [])
+        tr (var k)       = TyVarTy <$> lookupΣ (∈2i k)
+        tr (con c)       = pure (TyConApp (unTyCon c) [])
         -- TODO use TyConApp : TyCon → List KindOrType → Type
-        tr (τ₁ $ τ₂)    = AppTy <$> tr τ₁ <*> tr τ₂
-        tr (τ₁ ⇒ τ₂)    = FunTy <$> tr τ₁ <*> tr τ₂
-        tr (forAll κ τ) = ForAllTy <$> extendΣ κ <*> tr τ
-        tr (lit l)      = pure (LitTy l)
+        tr (τ₁ $ τ₂)     = AppTy <$> tr τ₁ <*> tr τ₂
+        tr (τ₁ ⇒ τ₂)     = FunTy <$> tr τ₁ <*> tr τ₂
+        tr (forAll κ τ)  = ForAllTy <$> extendΣ κ <*> tr τ
+        tr (lit l)       = pure (LitTy l)
+        tr (ffor ns q s) = TyVarTy <$> lift (lookupForeign ns q s)
 
     ToCoreExpr : ∀ {Σ Γ τ} → ToCore (Expr Σ Γ τ) CoreExpr
     ToCoreExpr = record { toCore = tr }
       where
         tr : ∀ {Σ Γ τ} → Expr Σ Γ τ → ToCoreM CoreExpr
-        tr (var k)   = Var' <$> lookupΓ (∈2i k)
-        tr (lit l)   = pure (Lit (unLit l))
-        tr (e₁ $ e₂) = App <$> tr e₁ <*> tr e₂
-        tr (e [ τ ]) = App <$> tr e <*> (Type' <$> toCore τ)
-        tr (lam τ e) = Lam <$> extendΓ τ <*> tr e
-        tr (Λ κ e)   = Lam <$> extendΣ κ <*> tr e
+        tr (var k)       = Var' <$> lookupΓ (∈2i k)
+        tr (lit l)       = pure (Lit (unLit l))
+        tr (e₁ $ e₂)     = App <$> tr e₁ <*> tr e₂
+        tr (e [ τ ])     = App <$> tr e <*> (Type' <$> toCore τ)
+        tr (lam τ e)     = Lam <$> extendΓ τ <*> tr e
+        tr (Λ κ e)       = Lam <$> extendΣ κ <*> tr e
+        tr (ffor ns q s) = Var' <$> lift (lookupForeign ns q s)
+
 
   extendΣ κ = toCore κ >>= λ ck →
               lift (mkTyVar "tyvar" ck) >>= λ id →

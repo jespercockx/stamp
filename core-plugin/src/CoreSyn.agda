@@ -1,8 +1,10 @@
 module CoreSyn where
 
 {-# IMPORT GhcPlugins #-}
+{-# IMPORT OccName #-}
 {-# IMPORT TypeRep #-}
 {-# IMPORT TysPrim #-}
+{-# IMPORT Data.ByteString #-}
 
 open import CoreMonad
 
@@ -36,10 +38,10 @@ postulate
 {-# COMPILED_TYPE TyCon GhcPlugins.TyCon #-}
 {-# COMPILED_TYPE TyLit TypeRep.TyLit #-}
 {-# COMPILED_TYPE Coercion GhcPlugins.Coercion #-}
-{-# COMPILED_TYPE ByteString GhcPlugins.ByteString #-}
-{-# COMPILED_TYPE Int GhcPlugins.Int #-}
-{-# COMPILED_TYPE Integer GhcPlugins.Integer #-}
-{-# COMPILED_TYPE Rational GhcPlugins.Rational #-}
+{-# COMPILED_TYPE ByteString Data.ByteString.ByteString  #-}
+{-# COMPILED_TYPE Int Prelude.Int #-}
+{-# COMPILED_TYPE Integer Prelude.Integer #-}
+{-# COMPILED_TYPE Rational Prelude.Rational #-}
 {-# COMPILED_TYPE FastString GhcPlugins.FastString #-}
 {-# COMPILED getOccString GhcPlugins.getOccString #-}
 
@@ -288,6 +290,23 @@ postulate
 {-# COMPILED intTyCon GhcPlugins.intTyCon #-}
 {-# COMPILED unitTyCon GhcPlugins.unitTyCon #-}
 
+
+postulate
+  NameSpace        : Set
+  tcNameSpace      : NameSpace
+  clsNameSpace     : NameSpace
+  dataNameSpace    : NameSpace
+  srcDataNameSpace : NameSpace
+  tvNameSpace      : NameSpace
+  varNameSpace     : NameSpace
+
+{-# COMPILED_TYPE NameSpace OccName.NameSpace #-}
+{-# COMPILED clsNameSpace OccName.clsName #-}
+{-# COMPILED tcNameSpace OccName.tcName #-}
+{-# COMPILED dataNameSpace OccName.dataName #-}
+{-# COMPILED srcDataNameSpace OccName.srcDataName #-}
+{-# COMPILED tvNameSpace OccName.tvName #-}
+{-# COMPILED varNameSpace OccName.varName #-}
 
 replaceAgdaWith : (Type → CoreM CoreExpr) → CoreProgram → CoreM CoreProgram
 replaceAgdaWith repl = transform t f

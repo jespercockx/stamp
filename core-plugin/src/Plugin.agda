@@ -10,6 +10,7 @@ open import CoreSyn
 open import TypedCore
 open ToCore
 open import MkPick using (pick1Of3)
+open import HelloWorld using (printHelloWorld)
 
 postulate
   CommandLineOption : Set
@@ -68,9 +69,11 @@ idFun = runToCoreM (toCore (ex₂ {[]} {[]}))
 pick : CoreM CoreExpr
 pick = runToCoreM (toCore pick1Of3)
 
+hello : CoreM CoreExpr
+hello = runToCoreM (toCore printHelloWorld)
 
 agdaMetaPass : List CommandLineOption → CoreProgram → CoreM CoreProgram
-agdaMetaPass options prog = replaceAgdaWith′ pick prog
+agdaMetaPass options prog = replaceAgdaWith′ hello prog
 {-# COMPILED_EXPORT agdaMetaPass agdaMetaPass #-}
 
 
