@@ -1,6 +1,10 @@
 module MyPrelude where
 
 open import Prelude hiding (trans) public
+open import Control.Monad.Reader public
+open import Control.Monad.Trans public
+open import Control.Monad.State hiding (lift) public
+
 
 module Exists where
   open import Prelude.Product public

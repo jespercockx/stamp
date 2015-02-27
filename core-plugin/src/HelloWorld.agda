@@ -6,7 +6,9 @@ open import UntypedCore using (∗; _⇒_)
 open import CoreSyn
   using (mkMachString; charTyCon; listTyCon; unitTyCon; tcNameSpace; varNameSpace)
 
-
+postulate
+ `String#` : ∀ {Σ} → Type Σ ∗
+-- TODO add boxed kind?
 
 `Char` : ∀ {Σ} → Type Σ ∗
 `Char` = con (tyCon charTyCon)
@@ -26,12 +28,14 @@ open import CoreSyn
 `putStrLn` : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ (`String` ⇒ `IO` $ `Unit`)
 `putStrLn` = ffor varNameSpace "System.IO" "putStrLn"
 
--- -- IO ∷ () ∷ String
--- helloWorld : Expr ((∗ ⇒ ∗) ∷ ∗ ∷ ∗ ∷ []) (({!!} ⇒ {!!}) ∷ []) (var hd $ var (tl hd))
--- helloWorld = var hd $ lit (mkMachString "Hello world")
+`unpackCStringUtf8#` : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ (`String` ⇒ `String`)
+`unpackCStringUtf8#` = ffor varNameSpace "GHC.CString" "unpackCStringUtf8#"
+-- TODO maybe a smart constructor? -> Smart constructors for all
+-- literals. Can we do this without losing type-safety by
+-- construction?
 
 helloWorld : Expr [] [] `String`
-helloWorld = lit (lit (mkMachString "Hello World"))
+helloWorld = `unpackCStringUtf8#` $ lit (lit (mkMachString "Hello World"))
 
 printHelloWorld : Expr [] [] (`IO` $ `Unit`)
 printHelloWorld = `putStrLn` $ helloWorld

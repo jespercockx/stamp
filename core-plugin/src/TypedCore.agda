@@ -118,52 +118,51 @@ erase (ffor ns q s) = foreign ns q s
 
 module ToCore where
 
-  {-# IMPORT TcRnMonad #-}
-  {-# IMPORT RnEnv #-}
-  {-# IMPORT TcEnv #-}
+  {-# IMPORT Find #-}
 
-  open import Control.Monad.State
   open import CoreMonad
   open import CoreSyn
     renaming (Kind to CKind; Type to CType)
     hiding (Expr)
 
   postulate
-    lookupForeign : NameSpace → String → String → CoreM Id
-  {-# COMPILED lookupForeign (\ns q s ->
-      do { let { rdr_name = GhcPlugins.mkUnqual ns (GhcPlugins.mkFastString s) }
-         ; hsc_env <- GhcPlugins.getHscEnv
-         ; GhcPlugins.liftIO $ TcRnMonad.initTcForLookup hsc_env $ do {
-           name <- RnEnv.lookupOccRn rdr_name
-         ; TcEnv.tcLookupId name }}) #-}
+    ModGuts       : Set
+  {-# COMPILED_TYPE ModGuts GhcPlugins.ModGuts #-}
+
 
   DeBruijnEnv : Set
   DeBruijnEnv = List Id
 
   ToCoreM : Set → Set
-  ToCoreM = StateT (DeBruijnEnv × DeBruijnEnv) CoreM
+  ToCoreM = ReaderT ModGuts (StateT (DeBruijnEnv × DeBruijnEnv) CoreM)
 
-  runToCoreM : ∀ {A : Set} → ToCoreM A → CoreM A
-  runToCoreM m = fst <$> runStateT m ([] , [])
+  runToCoreM : ∀ {A : Set} → ModGuts → ToCoreM A → CoreM A
+  runToCoreM modGuts m = fst <$> runStateT (runReaderT m modGuts) ([] , [])
 
   extendΣ : Kind → ToCoreM Var
 
   extendΓ : ∀ {Σ κ} → Type Σ κ → ToCoreM Var
 
   postulate
+    lookupForeignHs : ModGuts → NameSpace → String → String → CoreM Id
     panic : ∀ {A : Set} → String → A
+  {-# COMPILED lookupForeignHs
+      (\guts ns qual s -> Find.findInGuts guts ns qual s) #-}
   {-# COMPILED panic (\_ -> GhcPlugins.panic) #-}
   -- TODO use dependent types to avoid the panic
 
-  lookupΣ : Nat → ToCoreM Id
-  lookupΣ i = gets fst >>= λ Σ →
-    maybe (panic "Index out of bounds") return (Σ ! i)
+  lookupForeign : NameSpace → String → String → ToCoreM Id
+  lookupForeign ns q s = ask >>= λ guts →
+    lift (lift (lookupForeignHs guts ns q s))
 
+
+  lookupΣ : Nat → ToCoreM Id
+  lookupΣ i = lift (gets fst >>= λ Σ →
+    maybe (panic "Index out of bounds") return (Σ ! i))
 
   lookupΓ : Nat → ToCoreM Id
-  lookupΓ i = gets snd >>= λ Γ →
-    maybe (panic "Index out of bounds") return (Γ ! i)
-
+  lookupΓ i = lift (gets snd >>= λ Γ →
+    maybe (panic "Index out of bounds") return (Γ ! i))
 
 
   record ToCore (A : Set) (B : Set) : Set where
@@ -189,7 +188,7 @@ module ToCore where
         tr (τ₁ ⇒ τ₂)     = FunTy <$> tr τ₁ <*> tr τ₂
         tr (forAll κ τ)  = ForAllTy <$> extendΣ κ <*> tr τ
         tr (lit l)       = pure (LitTy l)
-        tr (ffor ns q s) = TyVarTy <$> lift (lookupForeign ns q s)
+        tr (ffor ns q s) = TyVarTy <$> lookupForeign ns q s
 
     ToCoreExpr : ∀ {Σ Γ τ} → ToCore (Expr Σ Γ τ) CoreExpr
     ToCoreExpr = record { toCore = tr }
@@ -201,15 +200,21 @@ module ToCore where
         tr (e [ τ ])     = App <$> tr e <*> (Type' <$> toCore τ)
         tr (lam τ e)     = Lam <$> extendΓ τ <*> tr e
         tr (Λ κ e)       = Lam <$> extendΣ κ <*> tr e
-        tr (ffor ns q s) = Var' <$> lift (lookupForeign ns q s)
+        tr (ffor ns q s) = Var' <$> lookupForeign ns q s
 
 
   extendΣ κ = toCore κ >>= λ ck →
-              lift (mkTyVar "tyvar" ck) >>= λ id →
-              modify (λ { (Σ , Γ) → id ∷ Σ , Γ }) >>
+              lift (lift (mkTyVar "tyvar" ck)) >>= λ id →
+              lift (extend id) >>
               return id
+    where
+      extend : Id → StateT (DeBruijnEnv × DeBruijnEnv) CoreM ⊤
+      extend id = modify (λ { (Σ , Γ) → id ∷ Σ , Γ }) >> return tt
 
   extendΓ τ = toCore τ >>= λ ct →
-              lift (mkId "var" ct) >>= λ id →
-              modify (λ { (Σ , Γ) → Σ , id ∷ Γ }) >>
+              lift (lift (mkId "var" ct)) >>= λ id →
+              lift (extend id) >>
               return id
+    where
+      extend : Id → StateT (DeBruijnEnv × DeBruijnEnv) CoreM ⊤
+      extend id = modify (λ { (Σ , Γ) → Σ , id ∷ Γ }) >> return tt

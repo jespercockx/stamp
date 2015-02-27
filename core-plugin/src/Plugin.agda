@@ -1,6 +1,7 @@
 module Plugin where
 
 {-# IMPORT GhcPlugins #-}
+{-# IMPORT Find #-}
 
 open import Prelude
 open import Data.Traversable using (mapM)
@@ -62,18 +63,18 @@ printBinders : CoreProgram → CoreM Unit
 printBinders prog = mapM (putMsgS ∘ getOccString) (binders prog) >>
                     return tt
 
-idFun : CoreM CoreExpr
-idFun = runToCoreM (toCore (ex₂ {[]} {[]}))
+idFun : ModGuts → CoreM CoreExpr
+idFun guts = runToCoreM guts (toCore (ex₂ {[]} {[]}))
 
 
-pick : CoreM CoreExpr
-pick = runToCoreM (toCore pick1Of3)
+pick : ModGuts → CoreM CoreExpr
+pick guts = runToCoreM guts (toCore pick1Of3)
 
-hello : CoreM CoreExpr
-hello = runToCoreM (toCore printHelloWorld)
+hello : ModGuts → CoreM CoreExpr
+hello guts = runToCoreM guts (toCore printHelloWorld)
 
-agdaMetaPass : List CommandLineOption → CoreProgram → CoreM CoreProgram
-agdaMetaPass options prog = replaceAgdaWith′ hello prog
+agdaMetaPass : List CommandLineOption → ModGuts → CoreProgram → CoreM CoreProgram
+agdaMetaPass options guts prog = replaceAgdaWith′ (hello guts) prog
 {-# COMPILED_EXPORT agdaMetaPass agdaMetaPass #-}
 
 

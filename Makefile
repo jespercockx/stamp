@@ -1,4 +1,7 @@
-all: plugin test
+all: utils plugin test
+
+utils:
+	(cd utils; cabal clean; cabal install -j --reinstall --force-reinstalls)
 
 plugin:
 	(cd core-plugin; cabal clean; cabal install -j --reinstall)

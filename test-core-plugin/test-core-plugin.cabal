@@ -21,6 +21,8 @@ executable Main
   -- other-extensions:
   build-depends:       base >=4.7 && <4.8
                      , core-plugin
+                     , ghc-prim
+   -- TODO get rid of ghc-prim dependency
   -- hs-source-dirs:
   default-language:    Haskell2010
   ghc-options:         -fplugin InstallPlugin -fforce-recomp -ddump-simpl -dsuppress-module-prefixes -dsuppress-idinfo -dcore-lint -ddump-to-file
