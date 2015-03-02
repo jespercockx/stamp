@@ -25,6 +25,8 @@ data ForeignTy (κ : Kind) : Set where
 
 infixr 2 _⇒_
 
+infixl 3 _$_
+
 data Type (Σ : TyCxt) : Kind → Set where
   var     : ∀ {κ} → κ ∈ Σ → Type Σ κ
   con     : ∀ {κ} → TyCon κ → Type Σ κ
@@ -145,11 +147,13 @@ module ToCore where
 
   postulate
     lookupForeignHs : ModGuts → NameSpace → String → String → CoreM Id
-    panic : ∀ {A : Set} → String → A
+    panic           : ∀ {A : Set} → String → A
+    mkAppTy         : CType → CType → CType
   {-# COMPILED lookupForeignHs
       (\guts ns qual s -> Find.findInGuts guts ns qual s) #-}
   {-# COMPILED panic (\_ -> GhcPlugins.panic) #-}
   -- TODO use dependent types to avoid the panic
+  {-# COMPILED mkAppTy GhcPlugins.mkAppTy #-}
 
   lookupForeign : NameSpace → String → String → ToCoreM Id
   lookupForeign ns q s = ask >>= λ guts →
@@ -183,8 +187,7 @@ module ToCore where
         tr : ∀ {Σ κ} → Type Σ κ → ToCoreM CType
         tr (var k)       = TyVarTy <$> lookupΣ (∈2i k)
         tr (con c)       = pure (TyConApp (unTyCon c) [])
-        -- TODO use TyConApp : TyCon → List KindOrType → Type
-        tr (τ₁ $ τ₂)     = AppTy <$> tr τ₁ <*> tr τ₂
+        tr (τ₁ $ τ₂)     = mkAppTy <$> tr τ₁ <*> tr τ₂
         tr (τ₁ ⇒ τ₂)     = FunTy <$> tr τ₁ <*> tr τ₂
         tr (forAll κ τ)  = ForAllTy <$> extendΣ κ <*> tr τ
         tr (lit l)       = pure (LitTy l)

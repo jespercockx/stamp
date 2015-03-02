@@ -1,6 +1,6 @@
 module HelloWorld where
 
-open import MyPrelude hiding (_≤_; _<_; _$_)
+open import MyPrelude hiding (_≤_; _<_; _$_; [_])
 open import TypedCore
 open import UntypedCore using (∗; _⇒_)
 open import CoreSyn
@@ -34,10 +34,16 @@ postulate
 -- literals. Can we do this without losing type-safety by
 -- construction?
 
-helloWorld : Expr [] [] `String`
-helloWorld = `unpackCStringUtf8#` $ lit (lit (mkMachString "Hello World"))
+str : String → Expr [] [] `String`
+str s = `unpackCStringUtf8#` $ lit (lit (mkMachString s))
+
+`++` : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ (forAll ∗ (`List` $ var hd ⇒ `List` $ var hd ⇒ `List` $ var hd))
+`++` = ffor varNameSpace "Data.List" "++"
+
+stringConcat : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ (`String` ⇒ `String` ⇒ `String`)
+stringConcat = lam `String` (lam `String` (`++` [ `Char` ] $ var (tl hd) $ var hd))
+
 
 printHelloWorld : Expr [] [] (`IO` $ `Unit`)
-printHelloWorld = `putStrLn` $ helloWorld
-
--- CONTINUE: see error
+printHelloWorld = `putStrLn` $ (stringConcat $ str "hello " $ str "world")
+-- printHelloWorld = `putStrLn` $ (`++` [ `Char` ] $ str "hello " $ str "world")
