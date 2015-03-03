@@ -284,11 +284,13 @@ postulate
   listTyCon : TyCon
   intTyCon  : TyCon
   unitTyCon : TyCon
+  boolTyCon : TyCon
 
 {-# COMPILED charTyCon GhcPlugins.charTyCon #-}
 {-# COMPILED listTyCon GhcPlugins.listTyCon #-}
 {-# COMPILED intTyCon GhcPlugins.intTyCon #-}
 {-# COMPILED unitTyCon GhcPlugins.unitTyCon #-}
+{-# COMPILED boolTyCon GhcPlugins.boolTyCon #-}
 
 
 postulate
