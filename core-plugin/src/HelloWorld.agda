@@ -3,11 +3,16 @@ module HelloWorld where
 open import MyPrelude hiding (_≤_; _<_; _$_; [_]; Show; show)
 open import TypedCore
 open import CoreSyn
-  using (DataCon; mkMachString; charTyCon; listTyCon; unitTyCon; boolTyCon;
+  using (DataCon; mkMachChar; mkMachString; charTyCon;
+         listTyCon; unitTyCon; boolTyCon;
          tcNameSpace; varNameSpace; dataNameSpace; clsNameSpace)
 
 postulate
- `String#` : ∀ {Σ} → Type Σ ∗
+  `String#`    : ∀ {Σ} → Type Σ ∗
+  trueDataCon : DataCon
+  charDataCon : DataCon
+{-# COMPILED trueDataCon GhcPlugins.trueDataCon #-}
+{-# COMPILED charDataCon GhcPlugins.charDataCon #-}
 -- TODO add boxed kind?
 
 `Char` : ∀ {Σ} → Type Σ ∗
@@ -34,6 +39,12 @@ postulate
 -- literals. Can we do this without losing type-safety by
 -- construction?
 
+char : Char → Expr [] [] `Char`
+char c = foreign (con charDataCon) $ foreign l
+  where
+    l : ForeignExpr [] `Char`
+    l = lit (mkMachChar c)
+
 str : String → Expr [] [] `String`
 str s = `unpackCStringUtf8#` $ foreign (lit (mkMachString s))
 
@@ -42,11 +53,6 @@ str s = `unpackCStringUtf8#` $ foreign (lit (mkMachString s))
 
 stringConcat : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ (`String` ⇒ `String` ⇒ `String`)
 stringConcat = lam `String` (lam `String` (`++` [ `Char` ] $ var (tl hd) $ var hd))
-
-postulate
-  trueDataCon : DataCon
-{-# COMPILED trueDataCon GhcPlugins.trueDataCon #-}
-
 
 
 `Bool` : ∀ {Σ} → Type Σ ∗
@@ -78,8 +84,10 @@ instance
   `ShowBool` : ∀ {Σ} → ShowC {Σ} `Bool`
   `ShowBool` = record { showDict = foreign dict }
 
+  `ShowChar` : ∀ {Σ} → ShowC {Σ} `Char`
+  `ShowChar` = record { showDict = foreign dict }
 
 printHelloWorld : Expr [] [] (`IO` $ `Unit`)
-printHelloWorld = `putStrLn` $ (stringConcat $ str "hello " $ (show `True`))
+printHelloWorld = `putStrLn` $ (`++` [ `Char` ] $ show (char 'a') $ show `True`)
 -- printHelloWorld = `putStrLn` $ (stringConcat $ str "hello " $ str "world")
 -- printHelloWorld = `putStrLn` $ (`++` [ `Char` ] $ str "hello " $ str "world")
