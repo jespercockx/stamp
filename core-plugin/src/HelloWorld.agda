@@ -67,7 +67,6 @@ stringConcat = lam `String` (lam `String` (`++` [ `Char` ] $ var (tl hd) $ var h
 `show` : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ (forAll ∗ ((`Show` $ var hd) ⇒ var hd ⇒ `String`))
 `show` = foreign (var varNameSpace "GHC.Show" "show")
 
--- TODO use Agda's records/instance search for type-class evidence
 record ShowC {Σ} (τ : Type Σ ∗) : Set where
   field
     showDict : ∀ {Γ : Cxt Σ} → Expr Σ Γ (`Show` $ τ)
