@@ -2,7 +2,6 @@ module MkPick where
 
 open import MyPrelude hiding (_≤_; _<_)
 open import TypedCore
-open import UntypedCore using (∗)
 
 infix 4 _≤_ _<_
 

@@ -24,12 +24,13 @@ library
                      , MAlonzo.Code.Plugin
                      , MAlonzo.Code.CoreMonad
                      , MAlonzo.Code.CoreSyn
-                     , MAlonzo.Code.UntypedCore
                      , MAlonzo.Code.TypedCore
+                     , MAlonzo.Code.ToCore
                      , MAlonzo.Code.MyPrelude
                      , MAlonzo.Code.MkPick
                      , MAlonzo.Code.HelloWorld
                      , MAlonzo.Code.Data.Traversable
+                     , MAlonzo.Code.Data.Int
                      , MAlonzo.Code.Control.Monad.State
                      , MAlonzo.Code.Control.Monad.Reader
                      , MAlonzo.Code.Prelude.List

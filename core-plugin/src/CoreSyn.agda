@@ -13,7 +13,6 @@ open import MyPrelude
 
 private
   postulate
-    error : ∀ {a} {A : Set a} → String → A
     todo  : ∀ {a} {A : Set a} → String → A
 
 postulate
@@ -25,7 +24,6 @@ postulate
   TyLit        : Set -- TODO
   Coercion     : Set -- TODO
   ByteString   : Set
-  Int          : Set
   Integer      : Set
   Rational     : Set
   FastString   : Set
@@ -39,7 +37,6 @@ postulate
 {-# COMPILED_TYPE TyLit TypeRep.TyLit #-}
 {-# COMPILED_TYPE Coercion GhcPlugins.Coercion #-}
 {-# COMPILED_TYPE ByteString Data.ByteString.ByteString  #-}
-{-# COMPILED_TYPE Int Prelude.Int #-}
 {-# COMPILED_TYPE Integer Prelude.Integer #-}
 {-# COMPILED_TYPE Rational Prelude.Rational #-}
 {-# COMPILED_TYPE FastString GhcPlugins.FastString #-}
@@ -59,11 +56,18 @@ data Triple (a b c : Set) : Set where
 
 data Type : Set
 
+
+TyVar : Set
+TyVar = Var
+
+Kind : Set
+Kind = Type
+
 KindOrType : Set
 KindOrType = Type
 
 data Type where
-  TyVarTy  : Var → Type
+  TyVarTy  : TyVar → Type
   AppTy    : Type → Type → Type
   TyConApp : TyCon → List KindOrType → Type
   FunTy    : Type → Type → Type
@@ -73,10 +77,6 @@ data Type where
 {-# COMPILED_DATA Type TypeRep.Type
     TypeRep.TyVarTy TypeRep.AppTy TypeRep.TyConApp
     TypeRep.FunTy TypeRep.ForAllTy TypeRep.LitTy #-}
-
-
-Kind : Set
-Kind = Type
 
 postulate
   liftedTypeKind : Kind

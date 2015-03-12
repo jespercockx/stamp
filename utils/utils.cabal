@@ -20,7 +20,9 @@ library
   hs-source-dirs:      src
   exposed-modules:     Find
                      , Typechecker
+                     , ToCoreM
   build-depends:       base >=4.7 && <4.8
                      , ghc
                      , containers == 0.5.5.1
+                     , mtl
   default-language:    Haskell2010

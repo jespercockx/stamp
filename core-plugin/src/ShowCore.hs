@@ -15,7 +15,12 @@ instance Show Var where
   show var
     | isTyVar   var = "(TyVar: "   ++ getOccString var ++ ")"
     | isTcTyVar var = "(TcTyVar: " ++ getOccString var ++ ")"
-    | isId      var = "(Id: "      ++ getOccString var ++ ")"
+    | isId      var = "(Id: "      ++ qual ++ getOccString var ++ ")"
+    where qual
+            | Just mod <- nameModule_maybe $ idName var
+            = moduleNameString (moduleName mod) ++ "."
+            | otherwise
+            = ""
 
 instance Show Name where
   show name = "(Name: " ++ getOccString name ++ ")"

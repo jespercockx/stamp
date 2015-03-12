@@ -2,9 +2,8 @@ module HelloWorld where
 
 open import MyPrelude hiding (_≤_; _<_; _$_; [_]; Show; show)
 open import TypedCore
-open import UntypedCore using (∗; _⇒_)
 open import CoreSyn
-  using (mkMachString; charTyCon; listTyCon; unitTyCon; boolTyCon;
+  using (DataCon; mkMachString; charTyCon; listTyCon; unitTyCon; boolTyCon;
          tcNameSpace; varNameSpace; dataNameSpace; clsNameSpace)
 
 postulate
@@ -12,49 +11,55 @@ postulate
 -- TODO add boxed kind?
 
 `Char` : ∀ {Σ} → Type Σ ∗
-`Char` = con (tyCon charTyCon)
+`Char` = foreign (con charTyCon)
 
 `List` : ∀ {Σ} → Type Σ (∗ ⇒ ∗)
-`List` = con (tyCon listTyCon)
+`List` = foreign (con listTyCon)
 
 `String` : ∀ {Σ} → Type Σ ∗
 `String` = `List` $ `Char`
 
 `Unit` : ∀ {Σ} → Type Σ ∗
-`Unit` = con (tyCon unitTyCon)
+`Unit` = foreign (con unitTyCon)
 
 `IO` : ∀ {Σ} → Type Σ (∗ ⇒ ∗)
-`IO` = ffor tcNameSpace "System.IO" "IO"
+`IO` = foreign (var tcNameSpace "System.IO" "IO")
 
 `putStrLn` : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ (`String` ⇒ `IO` $ `Unit`)
-`putStrLn` = ffor varNameSpace "System.IO" "putStrLn"
+`putStrLn` = foreign (var varNameSpace "System.IO" "putStrLn")
 
 `unpackCStringUtf8#` : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ (`String` ⇒ `String`)
-`unpackCStringUtf8#` = ffor varNameSpace "GHC.CString" "unpackCStringUtf8#"
+`unpackCStringUtf8#` = foreign (var varNameSpace "GHC.CString" "unpackCStringUtf8#")
 -- TODO maybe a smart constructor? -> Smart constructors for all
 -- literals. Can we do this without losing type-safety by
 -- construction?
 
 str : String → Expr [] [] `String`
-str s = `unpackCStringUtf8#` $ lit (lit (mkMachString s))
+str s = `unpackCStringUtf8#` $ foreign (lit (mkMachString s))
 
 `++` : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ (forAll ∗ (`List` $ var hd ⇒ `List` $ var hd ⇒ `List` $ var hd))
-`++` = ffor varNameSpace "Data.List" "++"
+`++` = foreign (var varNameSpace "Data.List" "++")
 
 stringConcat : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ (`String` ⇒ `String` ⇒ `String`)
 stringConcat = lam `String` (lam `String` (`++` [ `Char` ] $ var (tl hd) $ var hd))
 
+postulate
+  trueDataCon : DataCon
+{-# COMPILED trueDataCon GhcPlugins.trueDataCon #-}
+
+
+
 `Bool` : ∀ {Σ} → Type Σ ∗
-`Bool` = con (tyCon boolTyCon)
+`Bool` = foreign (con boolTyCon)
 
 `True` : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ `Bool`
-`True` = ffor dataNameSpace "GHC.Prim" "True"
+`True` = foreign (con trueDataCon)
 
 `Show` : ∀ {Σ} → Type Σ (∗ ⇒ ∗)
-`Show` = ffor clsNameSpace "GHC.Show" "Show"
+`Show` = foreign (var clsNameSpace "GHC.Show" "Show")
 
-`show` : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ (forAll ∗ (`Show` $ var hd ⇒ var hd ⇒ `String`))
-`show` = ffor varNameSpace "GHC.Show" "show"
+`show` : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ (forAll ∗ ((`Show` $ var hd) ⇒ var hd ⇒ `String`))
+`show` = foreign (var varNameSpace "GHC.Show" "show")
 
 -- TODO use Agda's records/instance search for type-class evidence
 record ShowC {Σ} (τ : Type Σ ∗) : Set where
@@ -64,20 +69,17 @@ record ShowC {Σ} (τ : Type Σ ∗) : Set where
 open ShowC {{...}} public
 
 
-show : ∀ {Σ} {Γ : Cxt Σ} {τ : Type Σ ∗} {{_ : ShowC {Σ} τ}} → Expr Σ Γ (forAll ∗ (var hd ⇒ `String`))
-show = {!!}
-
-private
-  postulate
-    error : ∀ {a} {A : Set a} → String → A
+show : ∀ {Σ} {Γ : Cxt Σ} {τ : Type Σ ∗} {{dict : ShowC {Σ} τ}} →
+         Expr Σ Γ τ → Expr Σ Γ `String`
+show {τ = τ} e = `show` [ τ ] $ showDict $ e
 
 
 instance
   `ShowBool` : ∀ {Σ} → ShowC {Σ} `Bool`
-  `ShowBool` = record { showDict = ffor varNameSpace "foo" "bar" }
+  `ShowBool` = record { showDict = foreign dict }
 
 
 printHelloWorld : Expr [] [] (`IO` $ `Unit`)
-printHelloWorld = `putStrLn` $ (stringConcat $ str "hello " $ (show [ `Bool` ] $ `True`))
+printHelloWorld = `putStrLn` $ (stringConcat $ str "hello " $ (show `True`))
 -- printHelloWorld = `putStrLn` $ (stringConcat $ str "hello " $ str "world")
 -- printHelloWorld = `putStrLn` $ (`++` [ `Char` ] $ str "hello " $ str "world")

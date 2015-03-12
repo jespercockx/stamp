@@ -1,56 +1,86 @@
-module Find where
+module Find (Named, findInGuts, findInstance) where
 
 import Control.Monad (liftM)
 import Data.List (intercalate)
+import Data.Functor ((<$>))
 
+import Class (Class)
+import ConLike (ConLike(..))
 import Finder (findImportedModule, cannotFindModule)
 import GhcPlugins
+import InstEnv (instanceDFunId)
 import LoadIface (loadSysInterface)
 import Panic (throwGhcExceptionIO, GhcException(..))
+import TcEnv (tcLookupInstance)
 import TcRnMonad (initIfaceTcRn)
+import TyCon (TyCon)
 
 import Typechecker
 
+
+type Named = Either Id TyCon
+
+
+
+findInstance :: ModGuts -> Class -> [Type] -> CoreM DFunId
+findInstance guts cls args = do
+  hsc_env <- getHscEnv
+  putMsg (text "Finding instance for:" <+> ppr cls <+> ppr args)
+  (_, mb_clsInst) <- liftIO $ initTcFromModGuts hsc_env guts HsSrcFile False $
+                     tcLookupInstance cls args
+  putMsgS "DONE"
+  return $ maybe (panic "No instance found") instanceDFunId mb_clsInst
+
 -- Copied from HERMIT
-findInGuts :: ModGuts -> NameSpace -> String -> String -> CoreM Id
-findInGuts guts ns qual str = do
+findInGuts :: ModGuts -> RdrName -> CoreM Named
+findInGuts guts rdr_name = putMsgS "findInGuts" >> do
   let rdr_env  = mg_rdr_env guts
-      rdr_name = mkQual ns (mkFastString qual, mkFastString str)
   case lookupGRE_RdrName rdr_name rdr_env of
-        [gre] -> lookupId $ gre_name gre
-        []    -> findInPackageDB guts ns rdr_name
+        [gre] -> lookupNamed (gre_name gre)
+        []    -> findInPackageDB guts rdr_name
         _     -> fail "findInGuts: multiple names returned"
 
-findInPackageDB :: ModGuts -> NameSpace -> RdrName -> CoreM Id
-findInPackageDB guts ns rdr_name = do
-  mnm <- lookupName guts ns rdr_name
+findInPackageDB :: ModGuts -> RdrName -> CoreM Named
+findInPackageDB guts rdr_name = putMsgS "findInPackageDB" >> do
+  mnm <- lookupName guts rdr_name
   case mnm of
-    Nothing -> findNamedBuiltIn ns rdr_name
-    Just n  -> lookupId n
+    Nothing -> findNamedBuiltIn rdr_name
+    Just n  -> lookupNamed n
+
+lookupNamed :: Name -> CoreM Named
+lookupNamed n = do
+  tything <- lookupThing n
+  case tything of
+    AnId id                   -> return $ Left id
+    ATyCon tc                 -> return $ Right tc
+    AConLike (RealDataCon dc) -> return $ Left $ dataConWrapId dc
+    _                         -> fail "Wrong kind of TyThing"
 
 -- | Helper to call lookupRdrNameInModule
-lookupName :: ModGuts -> NameSpace -> RdrName -> CoreM (Maybe Name)
-lookupName guts ns rdr_name = case isQual_maybe rdr_name of
+lookupName :: ModGuts -> RdrName -> CoreM (Maybe Name)
+lookupName guts rdr_name = putMsgS "lookupName" >> case isQual_maybe rdr_name of
   Nothing     -> return Nothing -- we can't use lookupName on the current module
   Just (m, _) -> do
     hsc_env <- getHscEnv
+    putMsgS "lookupRdrNameInModule"
     liftIO $ lookupRdrNameInModule hsc_env guts m rdr_name
 
-findNamedBuiltIn :: NameSpace -> RdrName -> CoreM Id
-findNamedBuiltIn ns rdr_name
-  | isValNameSpace ns
+findNamedBuiltIn :: RdrName -> CoreM Named
+findNamedBuiltIn rdr_name
+  | isValNameSpace (rdrNameSpace rdr_name)
   = case [ dc | tc <- wiredInTyCons, dc <- tyConDataCons tc
               , cmpRdrName2Name rdr_name (getName dc) ] of
       []   -> fail "name not in scope."
-      [dc] -> return $ dataConWrapId dc
+      [dc] -> return $ Left $ dataConWrapId dc
       dcs  -> fail $ "multiple DataCons match: " ++
-             intercalate ", " (map unqualifiedName dcs)
-  -- | isTcClsNameSpace ns
-  -- = case [ tc | tc <- wiredInTyCons, cmpRdrName2Name rdr_name (getName tc) ] of
-  --     []   -> fail "type name not in scope."
-  --     [tc] -> return $ NamedTyCon tc
-  --     tcs  -> fail $ "multiple TyCons match: " ++
-  --            intercalate ", " (map unqualifiedName tcs)
+              intercalate ", " (map unqualifiedName dcs)
+  | isTcClsNameSpace (rdrNameSpace rdr_name)
+  = putMsgS "AQUI" >> case [ tc | tc <- wiredInTyCons
+              , cmpRdrName2Name rdr_name (getName tc) ] of
+      []   -> fail "type name not in scope."
+      [tc] -> return $ Right tc
+      tcs  -> fail $ "multiple TyCons match: " ++
+              intercalate ", " (map unqualifiedName tcs)
   | otherwise
   = fail "findNameBuiltIn: unusable NameSpace"
 
@@ -90,7 +120,6 @@ lookupRdrNameInModule hsc_env guts mod_name rdr_name = do
             (_, mb_iface) <- initTcFromModGuts hsc_env guts HsSrcFile False $
                              initIfaceTcRn $
                              loadSysInterface doc mod
-
             case mb_iface of
                 Just iface -> do
                     -- Try and find the required name in the exports

@@ -9,7 +9,7 @@ open import Data.Traversable using (mapM)
 open import CoreMonad
 open import CoreSyn
 open import TypedCore
-open ToCore
+open import ToCore
 open import MkPick using (pick1Of3)
 open import HelloWorld using (printHelloWorld)
 
