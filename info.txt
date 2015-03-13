@@ -1,0 +1,75 @@
+
+    +--------------------+               +---------------------+                   +-------------------+
+    |                    |   depends on  |                     |   depends on      |                   |
+    |    [[file:utils][utils]]           |/|             |   [[file:core-plugin][core-plugin]]       |/|                 |  [[file:test-core-plugin][test-core-plugin]] |
+    |                    X-|-------------+                     X-|-----------------+                   |
+    |    Haskell         |\|             |   Agda + 1 Haskell  |\|                 |  Haskell          |
+    |                    |               |                     |                   |                   |
+    +--------------------+               +---------------------+                   +-------------------+
+
+    - looking up vars using              - [[file:core-plugin/src/CoreSyn.agda][CoreSyn]] modelled in Agda                - [[file:test-core-plugin/Main.hs][Example]] file to splice in
+      GHC                                - [[file:core-plugin/src/TypedCore.agda][TypedCore]] variant                       - Uses core-plugin while compiling
+      `String -> Id`                     - Translation [[file:core-plugin/src/ToCore.agda][to core]]
+      `String -> TyCon`                  - 1 Haskell [[file:core-plugin/src/InstallPlugin.hs][file]] to define the plugin
+    - utilities + monad (ToCoreM)        - Meta-programming examples:
+      for translating to Core              + Sophie's [[file:core-plugin/src/MkPick.agda][MkPick]]
+                                           + [[file:core-plugin/src/HelloWorld.agda][HelloWorld]] + Show type class
+                                         - TODO: less explicitly-typed
+                                           variant of TypedCore with more
+                                           that is easier to write programs in
+                                           + some sort of type check function
+                                         - Temporarily removed unused UntypedCore
+                                           variant. Useless when generating Core,
+                                           as types of arguments are required.
+
+
+* Splicing
+- Install the plugin as a Core2Core pass in the core [[file:core-plugin/src/InstallPlugin.hs][pipeline]]
+- Currently: the plugin replaces `agda = undefined` with the output of the meta-program.
+  + Pro: typed (local) arguments can be passed
+  - Con: only one occurrence
+  Use Template Haskell?
+- Run the ToCoreM-monad which allocates fresh (type) variables, and
+  looks up predefined Haskell values, classes, (type) constructors.
+  Issue: lookups can fail while splicing when var is missing, e.g.
+
+    `Show` : ∀ {Σ} → Type Σ (∗ ⇒ ∗)
+    `Show` = foreign (var clsNameSpace "GHC.Show" "Shoz")  -- typo
+
+  Issue: compilation of generated code can fail when type 'foreign function'
+  declaration has the wrong type. Detected by optional Core typechecker (core-lint).
+
+    `True` : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ `Char` -- should have been Bool
+    `True` = foreign (con trueDataCon)
+
+  Dangerous data type:
+
+    data ForeignExpr (Σ : TyCxt) (τ : Type Σ ∗) : Set where
+      lit  : Literal → ForeignExpr Σ τ
+      var  : NameSpace → String → String → ForeignExpr Σ τ
+      con  : DataCon → ForeignExpr Σ τ
+      dict : ForeignExpr Σ τ
+
+  Solutions:
+  - Provide correct 'MetaPrelude', hide dangerous constructors, however,
+    they're required for making new foreign functions available.
+  - Generate Prelude.agda based on Prelude.hs using a metaprogram.
+
+- Use Agda's instance search for the meta-program's type-class instance search.
+  See [[file:core-plugin/src/HelloWorld.agda][HelloWorld]]
+  Issue: same issue as before, instance lookup happens during splicing and can
+  fail for missing instances.
+
+
+* Typed Core
+- Largely based on Sophie's representation
+- Missing:
+  + Let: by default with recursive bindings
+  + Case: non-trivial ordering/pattern-shape variants -> imitate GHC's
+          desugaring to Core?
+  + Cast/Coercion: model coercion rules in Agda too
+        Do we want users to have to write them manually?
+        If not, we have to imitate the GHC's translation (= downside of using Core)
+  + Tick: debugging/profiling/annotation, easy to add.
+- Tried modelling it with PHOAS, which made the conversion (i.e. generating
+  fresh variables) to Core easier, but got stuck when translating substitution.
