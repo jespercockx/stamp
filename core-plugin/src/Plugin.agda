@@ -64,7 +64,7 @@ printBinders prog = mapM (putMsgS ∘ getOccString) (binders prog) >>
                     return tt
 
 idFun : ModGuts → CoreM CoreExpr
-idFun guts = runToCoreM guts (toCore (ex₂ {[]} {[]}))
+idFun guts = runToCoreM guts (toCore (ex₁ {[]} {[]}))
 
 
 pick : ModGuts → CoreM CoreExpr

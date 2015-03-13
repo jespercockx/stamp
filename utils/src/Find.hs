@@ -75,7 +75,7 @@ findNamedBuiltIn rdr_name
       dcs  -> fail $ "multiple DataCons match: " ++
               intercalate ", " (map unqualifiedName dcs)
   | isTcClsNameSpace (rdrNameSpace rdr_name)
-  = putMsgS "AQUI" >> case [ tc | tc <- wiredInTyCons
+  = case [ tc | tc <- wiredInTyCons
               , cmpRdrName2Name rdr_name (getName tc) ] of
       []   -> fail "type name not in scope."
       [tc] -> return $ Right tc

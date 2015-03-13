@@ -79,9 +79,5 @@ data Expr (Σ : TyCxt) (Γ : Cxt Σ) : Type Σ ∗ → Set where
             Expr Σ Γ (forAll κ τ)
   foreign : ∀ {τ} → ForeignExpr Σ τ → Expr Σ Γ τ
 
-
--- ex₁ : ∀ {Σ Γ} → Expr Σ Γ (Int ⇒ Int)
--- ex₁ = lam Int (var hd)
-
-ex₂ : ∀ {Σ Γ} → Expr Σ Γ (forAll ∗ (var hd ⇒ var hd))
-ex₂ = Λ ∗ (lam (var hd) (var hd))
+ex₁ : ∀ {Σ Γ} → Expr Σ Γ (forAll ∗ (var hd ⇒ var hd))
+ex₁ = Λ ∗ (lam (var hd) (var hd))

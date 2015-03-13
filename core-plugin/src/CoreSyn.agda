@@ -325,7 +325,7 @@ replaceAgdaWithTrue : CoreProgram → CoreM CoreProgram
 replaceAgdaWithTrue = replaceAgdaWith repl
   where
     repl : Type → CoreM CoreExpr
-    repl ty = mkId "jos" (funArgTy ty) >>= λ id → return $ Lam id (mkCoreConApps falseDataCon [])
+    repl ty = mkId "_" (funArgTy ty) >>= λ id → return $ Lam id (mkCoreConApps trueDataCon [])
 
 
 -- Variant of replaceAgdaWith that removes all the type abstractions
