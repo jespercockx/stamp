@@ -45,6 +45,16 @@ instance
 
 
 
+
+++-[] : ∀ {A : Set} {xs : List A} → xs ++ [] ≡ xs
+++-[] {xs = []} = refl
+++-[] {xs = x ∷ xs} = cong (λ zs → x ∷ zs) ++-[]
+
+cons-middle-snoc : ∀ {A : Set} {y : A} (xs ys : List A) →
+                     xs ++ (y ∷ ys) ≡ (xs ++ [ y ]) ++ ys
+cons-middle-snoc [] _ = refl
+cons-middle-snoc (x ∷ xs′) ys = cong (λ zs → x ∷ zs) (cons-middle-snoc xs′ ys)
+
 data _∈_ {A : Set} (x : A) : List A → Set where
   hd : ∀ {xs}            → x ∈ (x ∷ xs)
   tl : ∀ {y xs} → x ∈ xs → x ∈ (y ∷ xs)
@@ -56,11 +66,52 @@ data _∈_ {A : Set} (x : A) : List A → Set where
 ∈2el : ∀ {A : Set} {x : A} {xs : List A} → x ∈ xs → A
 ∈2el {x = x} _ = x
 
+∈-prefix : ∀ {A : Set} {x : A} {xs ys : List A} →
+             x ∈ xs → x ∈ (ys ++ xs)
+∈-prefix {ys = []} p = p
+∈-prefix {ys = _ ∷ ys} p = tl (∈-prefix {ys = ys} p)
+
+∈-suffix : ∀ {A : Set} {x : A} {xs ys : List A} →
+             x ∈ xs → x ∈ (xs ++ ys)
+∈-suffix hd = hd
+∈-suffix (tl p) = tl (∈-suffix p)
+
+∈-++ : ∀ {A : Set} {x : A} {xs ys : List A} →
+          x ∈ (xs ++ ys) → Either (x ∈ xs) (x ∈ ys)
+∈-++ {xs = []} p = right p
+∈-++ {xs = x₁ ∷ xs} {[]} p rewrite ++-[] {xs = x₁ ∷ xs} = left p
+∈-++ {xs = ._ ∷ xs} {ys} hd = left hd
+∈-++ {x = x} {xs = x₁ ∷ xs} {ys} (tl p) with ∈-++ {x = x} {xs = xs} {ys = ys} p
+... | left  q = left (tl q)
+... | right q = right q
+
+∈-++′ : ∀ {A : Set} {x : A} {xs ys : List A} →
+          Either (x ∈ xs) (x ∈ ys) → x ∈ (xs ++ ys)
+∈-++′ (left p) = (∈-suffix p)
+∈-++′ {xs = xs} (right p) = ∈-prefix {ys = xs} p
+
+∈-++-swap : ∀ {A : Set} {x : A} {xs ys : List A} →
+             x ∈ (xs ++ ys) → x ∈ (ys ++ xs)
+∈-++-swap {xs = []} {ys} p rewrite ++-[] {xs = ys} = p
+∈-++-swap {xs = ._ ∷ xs} {[]} hd = hd
+∈-++-swap {xs = _ ∷ xs} {[]} (tl p) rewrite ++-[] {xs = xs} = tl p
+∈-++-swap {xs = ._ ∷ _} {x₂ ∷ ys} hd = ∈-prefix {ys = x₂ ∷ ys} hd
+∈-++-swap {xs = _ ∷ xs} {_ ∷ _} (tl p) with ∈-++ {xs = xs} p
+∈-++-swap {xs = x₃ ∷ _} {x₂ ∷ ys} (tl p)
+    | left q = ∈-++′ {xs = x₂ ∷ ys} (right (tl {y = x₃} q))
+... | right hd = hd
+... | right (tl q) = tl (∈-++′ (left q))
+
+
+--  ∈-++-swap {xs = xs} {ys = x₂ ∷ ys} (tl {y = x₁} p)
+
+infix 4 _⊆_
+
 _⊆_ : ∀ {A : Set} → List A → List A → Set
 xs ⊆ ys = ∀ {x} → x ∈ xs → x ∈ ys
 
 _⊈_ : ∀ {A : Set} → List A → List A → Set
-xs ⊈ ys = ¬ xs ⊆ ys
+xs ⊈ ys = ¬ (xs ⊆ ys)
 
 ⊆-refl : ∀ {A : Set} {xs : List A} → xs ⊆ xs
 ⊆-refl = id
@@ -79,3 +130,14 @@ xs ⊈ ys = ¬ xs ⊆ ys
 
 ∈-over-⊆ : ∀ {A : Set} {x : A} {xs ys : List A} → xs ⊆ ys → x ∈ xs → x ∈ ys
 ∈-over-⊆ p q = p q
+
+⊆-++-swap : ∀ {A : Set} (xs ys : List A) → xs ++ ys ⊆ ys ++ xs
+⊆-++-swap xs ys = ∈-++-swap {xs = xs} {ys = ys}
+
+
+⊆-cons-middle : ∀ {A : Set} {x : A} {xs ys : List A} →
+                  xs ++ (x ∷ ys) ⊆ (x ∷ xs) ++ ys
+⊆-cons-middle {_} {x} {xs} {ys} p with ∈-++ {xs = xs} {ys = x ∷ ys} p
+⊆-cons-middle {x = x₁} {xs = xs} _ | left  q = ∈-++′ {xs = x₁ ∷ xs} (left (tl q))
+⊆-cons-middle _ | right hd = hd
+⊆-cons-middle {x = x} {xs = xs} _ | right (tl q) = ∈-++′ {xs = x ∷ xs} (right q)
