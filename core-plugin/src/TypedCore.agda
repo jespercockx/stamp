@@ -16,9 +16,7 @@ Context = List
 TyCxt : Set
 TyCxt = Context Kind
 
-data TyCon (κ : Kind) : Set where
-  con : CTyCon → TyCon κ
-
+data TyCon (κ : Kind) : Set
 
 data ForeignTy (κ : Kind) : Set where
   lit : TyLit → ForeignTy κ
@@ -39,6 +37,32 @@ data Type (Σ : TyCxt) : Kind → Set where
 
 Cxt : TyCxt → Set
 Cxt Σ = Context (Type Σ ∗)
+
+--- Utilities for modelling Type Constructors
+
+data Saturates : TyCxt → Kind → Set where
+  []  : Saturates [] ∗
+  _∷_ : ∀ {κ Σ} → (κ₁ : Kind) → Saturates Σ κ → Saturates (κ₁ ∷ Σ) (κ₁ ⇒ κ)
+
+satTyCxt : ∀ {Σ} {κ} → Saturates Σ κ → TyCxt
+satTyCxt {Σ} _ = Σ
+
+saturateTyCon : ∀ {Σ κ} → Saturates Σ κ → Type Σ κ → Type Σ ∗
+saturateTyCon = go ⊆-refl
+  where
+    go : ∀ {Σ Σ′ κ} → Σ ⊆ Σ′ → Saturates Σ κ → Type Σ′ κ → Type Σ′ ∗
+    go _ [] τ = τ
+    go p (κ₁ ∷ sat) τ = go (λ z → p (tl z)) sat (τ $ var (p hd))
+
+data TyCon κ where
+  con : ∀ {Σ} → CTyCon → Saturates Σ κ → List CDataCon → TyCon κ
+
+tyConArgs : ∀ {κ} → TyCon κ → TyCxt
+tyConArgs (con _ sat _) = satTyCxt sat
+
+tyConType : ∀ {κ} → (tc : TyCon κ) → Type (tyConArgs tc) ∗
+tyConType tc with tc
+... | con _ sat _ = saturateTyCon sat (con tc)
 
 --- Weakening and substitution
 
@@ -70,14 +94,26 @@ substTop τ (foreign f)  = foreign f
 
 --- Expr and related data types
 
-data DataCon {Σ} (τ : Type Σ ∗) : Set where
-  con : ∀ {κ} → CDataCon → (tc : TyCon κ) → DataCon τ
+_constrOf_ : ∀ {κ} → CDataCon → TyCon κ → Set
+cdc constrOf (con _ _ cdcs) = cdc ∈ cdcs
+
+
+mkFun : {Σ : TyCxt} → Cxt Σ → Type Σ ∗ → Type Σ ∗
+mkFun []       τ = τ
+mkFun (τ₁ ∷ Γ) τ = mkFun Γ (τ₁ ⇒ τ)
+
+data DataCon : {Σ : TyCxt} → Type Σ ∗ → Set where
+  con : ∀ {κ}
+          (cdc : CDataCon) →
+          (tc : TyCon κ) →
+          cdc constrOf tc →
+          (args : Cxt (tyConArgs tc)) →
+          DataCon (mkFun args (tyConType tc))
 
 data ForeignExpr (Σ : TyCxt) (τ : Type Σ ∗) : Set where
   lit  : Literal → ForeignExpr Σ τ
   var  : NameSpace → String → String → ForeignExpr Σ τ
   dict : ForeignExpr Σ τ
-
 
 data Branch (Σ : TyCxt) (Γ : Cxt Σ) : Type Σ ∗ → Type Σ ∗ → Set
 
@@ -106,154 +142,46 @@ data Branch Σ Γ where
   alt : ∀ {τ₁ τ₂} → Pat {Σ} τ₁ → Expr Σ Γ τ₂ → Branch Σ Γ τ₁ τ₂
 
 
---- Utilities for modelling Algebraic Data Types
+--- Example ADT: Bool
 
-mkKind : TyCxt → Kind
-mkKind [] = ∗
-mkKind (κ ∷ Σ) = κ ⇒ mkKind Σ
+`Bool` : TyCon ∗
+`Bool` = con boolTyCon [] (trueDataCon ∷ falseDataCon ∷ [])
 
-mkFun : {Σ : TyCxt} → Cxt Σ → Type Σ ∗ → Type Σ ∗
-mkFun []       τ = τ
-mkFun (τ₁ ∷ Γ) τ = mkFun Γ (τ₁ ⇒ τ)
+`True` : DataCon (con `Bool`)
+`True` = con trueDataCon `Bool` hd []
 
-data Saturates : TyCxt → Kind → Set where
-  []  : Saturates [] ∗
-  _∷_ : ∀ {κ Σ} → (κ₁ : Kind) → Saturates Σ κ → Saturates (κ₁ ∷ Σ) (κ₁ ⇒ κ)
+`False` : DataCon (con `Bool`)
+`False` = con falseDataCon `Bool` (tl hd) []
 
-saturateTyCon : ∀ {Σ κ} → Saturates Σ κ → Type Σ κ → Type Σ ∗
-saturateTyCon = go ⊆-refl
-  where
-    go : ∀ {Σ Σ′ κ} → Σ ⊆ Σ′ → Saturates Σ κ → Type Σ′ κ → Type Σ′ ∗
-    go _ [] τ = τ
-    go p (κ₁ ∷ sat) τ = go (λ z → p (tl z)) sat (τ $ var (p hd))
-
---- ADT
-
-record ADT {n : Nat} {Σ : TyCxt} : Set where
-  κ : Kind
-  κ = mkKind Σ
-
-  field
-    tyArgs : Saturates Σ κ
-    coreTyCon : CTyCon
-
-  tyCon : TyCon κ
-  tyCon = con coreTyCon
-
-  field
-    constructors : Vec (CDataCon × Cxt Σ) n
-
-  unsaturatedTy : Type Σ κ
-  unsaturatedTy = con tyCon
-
-  saturatedTy : Type Σ ∗
-  saturatedTy = saturateTyCon tyArgs (con tyCon)
-
-open ADT {{...}} public
-
-
-
-constructorType : ∀ {n Σ} → (adt : ADT {n} {Σ}) → Fin n → Type Σ ∗
-constructorType adt i with indexVec (ADT.constructors adt) i
-... | _ , args = mkFun args (ADT.saturatedTy adt)
-
-constructorDataCon : ∀ {n Σ} → (adt : ADT {n} {Σ}) → (i : Fin n) →
-                       DataCon (constructorType adt i)
-constructorDataCon adt i with indexVec (ADT.constructors adt) i
-... | dc , _ = con dc (ADT.tyCon adt)
-
-constructorExpr : ∀ {n Σ} → (adt : ADT {n} {Σ}) → (i : Fin n) →
-                    Expr Σ [] (constructorType adt i)
-constructorExpr adt i = con (constructorDataCon adt i)
-
-
---- Example: Bool
-
-BoolADT : ADT
-BoolADT
-  = record { tyArgs       = []
-           ; coreTyCon    = boolTyCon
-           ; constructors = (trueDataCon , []) ∷ (falseDataCon , []) ∷ []
-           }
-
-`Bool` : Type [] ∗
-`Bool` = ADT.unsaturatedTy BoolADT
-
-`True` : DataCon `Bool`
-`True` = constructorDataCon BoolADT zero
-
-`False` : DataCon `Bool`
-`False` = constructorDataCon BoolADT (suc zero)
-
-
---- Example: Maybe
+--- Example ADT: Maybe
 postulate
   maybeTyCon     : CTyCon
   justDataCon    : CDataCon
   nothingDataCon : CDataCon
 
 
-MaybeADT : ADT
-MaybeADT
-  = record { tyArgs       = ∗ ∷ []
-           ; coreTyCon    = maybeTyCon
-           ; constructors = (nothingDataCon , []) ∷
-                            (justDataCon , var hd ∷ []) ∷
-                            []
-           }
+`Maybe` : TyCon (∗ ⇒ ∗)
+`Maybe` = con maybeTyCon (∗ ∷ []) (nothingDataCon ∷ justDataCon ∷ [])
 
-`Maybe` : Type (∗ ∷ []) (∗ ⇒ ∗)
-`Maybe` = ADT.unsaturatedTy MaybeADT
+`Nothing` : DataCon (con `Maybe` $ var hd)
+`Nothing` = con nothingDataCon `Maybe` hd []
 
-`Nothing` : Expr (∗ ∷ []) [] (`Maybe` $ var hd)
-`Nothing` = constructorExpr MaybeADT zero
-
-`Just` : Expr (∗ ∷ []) [] (var hd ⇒ `Maybe` $ var hd)
-`Just` = constructorExpr MaybeADT (suc zero)
+`Just` : DataCon (var hd ⇒ con `Maybe` $ var hd)
+`Just` = con justDataCon `Maybe` (tl hd) (var hd ∷ [])
 
 --- Try pattern matching
 
-
-`not` : Expr [] [] (`Bool` ⇒ `Bool`)
-`not` = lam `Bool` (match (var hd) (trueCase ∷ falseCase ∷ []))
+`not` : Expr [] [] (con `Bool` ⇒ con `Bool`)
+`not` = lam (con `Bool`) (match (var hd) (trueCase ∷ falseCase ∷ []))
   where
-    trueCase : Branch [] (`Bool` ∷ []) `Bool` `Bool`
+    trueCase : Branch [] (con `Bool` ∷ []) (con `Bool`) (con `Bool`)
     trueCase = alt (con `True`) (con `False`)
-    falseCase : Branch [] (`Bool` ∷ []) `Bool` `Bool`
+    falseCase : Branch [] (con `Bool` ∷ []) (con `Bool`) (con `Bool`)
     falseCase = alt (con `False`) (con `True`)
 
 -- TODO check exhaustiveness
 
-
---- Once useful helpers and test cases
-
-ex₁ : ∀ {Σ Γ} → Expr Σ Γ (forAll ∗ (var hd ⇒ var hd))
-ex₁ = Λ ∗ (lam (var hd) (var hd))
-
-
--- tyCon : ∀ {κ} {Σ} → Type Σ κ → Maybe (∃ λ κ′ → TyCon κ′)
--- tyCon      (τ $ _)  = tyCon τ
--- tyCon {κ′} (con tc) = just (κ′ , tc)
--- tyCon      _        = nothing
-
-resType : ∀ {Σ} → Type Σ ∗ → ∃ λ Σ′ → Type Σ′ ∗
-resType (_ ⇒ τ)      = resType τ
-resType (forAll κ τ) = resType τ
-resType {Σ} τ        = Σ , τ
-
-argTypes : ∀ {Σ} → Type Σ ∗ → ∃ λ Σ′ → List (Type (Σ′ ++ Σ) ∗)
-argTypes {Σ} (forAll κ τ) with argTypes τ
-... | Σ′ , τs rewrite (cons-middle-snoc {y = κ} Σ′ Σ) = Σ′ ++ (κ ∷ []) , τs
-argTypes (τ₁ ⇒ τ₂) with argTypes τ₂
-... | Σ′ , τs = Σ′ , weakenType τ₁ (∈-prefix {ys = Σ′}) ∷ τs
-argTypes τ = [] , []
-
--- foo : Type [] ∗
--- foo = forAll (∗ ⇒ ∗) (forAll ∗ (var hd ⇒ var (tl hd) $ var hd))
-
-
 --- Different cases of (G)ADTs to consider
-
 {-
 
 
