@@ -40,6 +40,8 @@ data Type (Σ : TyCxt) : Kind → Set where
 Cxt : TyCxt → Set
 Cxt Σ = Context (Type Σ ∗)
 
+--- Weakening and substitution
+
 weakenType : ∀ {Σ₁ Σ₂ κ} → Type Σ₁ κ → Σ₁ ⊆ Σ₂ → Type Σ₂ κ
 weakenType (var i)      p = var (∈-over-⊆ p i)
 weakenType (τ₁ $ τ₂)    p = weakenType τ₁ p $ weakenType τ₂ p
@@ -66,6 +68,7 @@ substTop τ (forAll κ t) = forAll κ (substTop (weakenType τ (⊆-skip ⊆-ref
 substTop τ (con c)      = con c
 substTop τ (foreign f)  = foreign f
 
+--- Expr and related data types
 
 data DataCon {Σ} (τ : Type Σ ∗) : Set where
   con : ∀ {κ} → CDataCon → (tc : TyCon κ) → DataCon τ
@@ -103,7 +106,7 @@ data Branch Σ Γ where
   alt : ∀ {τ₁ τ₂} → Pat {Σ} τ₁ → Expr Σ Γ τ₂ → Branch Σ Γ τ₁ τ₂
 
 
--- Utilities for modelling Algebraic Data Types
+--- Utilities for modelling Algebraic Data Types
 
 mkKind : TyCxt → Kind
 mkKind [] = ∗
@@ -124,6 +127,7 @@ saturateTyCon = go ⊆-refl
     go _ [] τ = τ
     go p (κ₁ ∷ sat) τ = go (λ z → p (tl z)) sat (τ $ var (p hd))
 
+--- ADT
 
 record ADT {n : Nat} {Σ : TyCxt} : Set where
   κ : Kind
@@ -145,7 +149,6 @@ record ADT {n : Nat} {Σ : TyCxt} : Set where
   saturatedTy : Type Σ ∗
   saturatedTy = saturateTyCon tyArgs (con tyCon)
 
-
 open ADT {{...}} public
 
 
@@ -154,11 +157,17 @@ constructorType : ∀ {n Σ} → (adt : ADT {n} {Σ}) → Fin n → Type Σ ∗
 constructorType adt i with indexVec (ADT.constructors adt) i
 ... | _ , args = mkFun args (ADT.saturatedTy adt)
 
+constructorDataCon : ∀ {n Σ} → (adt : ADT {n} {Σ}) → (i : Fin n) →
+                       DataCon (constructorType adt i)
+constructorDataCon adt i with indexVec (ADT.constructors adt) i
+... | dc , _ = con dc (ADT.tyCon adt)
+
 constructorExpr : ∀ {n Σ} → (adt : ADT {n} {Σ}) → (i : Fin n) →
                     Expr Σ [] (constructorType adt i)
-constructorExpr adt i with indexVec (ADT.constructors adt) i
-... | dc , _ = con (con dc (ADT.tyCon adt))
+constructorExpr adt i = con (constructorDataCon adt i)
 
+
+--- Example: Bool
 
 BoolADT : ADT
 BoolADT
@@ -170,13 +179,14 @@ BoolADT
 `Bool` : Type [] ∗
 `Bool` = ADT.unsaturatedTy BoolADT
 
-`True` : Expr [] [] `Bool`
-`True` = constructorExpr BoolADT zero
+`True` : DataCon `Bool`
+`True` = constructorDataCon BoolADT zero
 
-`False` : Expr [] [] `Bool`
-`False` = constructorExpr BoolADT (suc zero)
+`False` : DataCon `Bool`
+`False` = constructorDataCon BoolADT (suc zero)
 
 
+--- Example: Maybe
 postulate
   maybeTyCon     : CTyCon
   justDataCon    : CDataCon
@@ -201,9 +211,21 @@ MaybeADT
 `Just` : Expr (∗ ∷ []) [] (var hd ⇒ `Maybe` $ var hd)
 `Just` = constructorExpr MaybeADT (suc zero)
 
+--- Try pattern matching
 
 
--- Once useful helpers and test cases
+`not` : Expr [] [] (`Bool` ⇒ `Bool`)
+`not` = lam `Bool` (match (var hd) (trueCase ∷ falseCase ∷ []))
+  where
+    trueCase : Branch [] (`Bool` ∷ []) `Bool` `Bool`
+    trueCase = alt (con `True`) (con `False`)
+    falseCase : Branch [] (`Bool` ∷ []) `Bool` `Bool`
+    falseCase = alt (con `False`) (con `True`)
+
+-- TODO check exhaustiveness
+
+
+--- Once useful helpers and test cases
 
 ex₁ : ∀ {Σ Γ} → Expr Σ Γ (forAll ∗ (var hd ⇒ var hd))
 ex₁ = Λ ∗ (lam (var hd) (var hd))
@@ -230,10 +252,10 @@ argTypes τ = [] , []
 -- foo = forAll (∗ ⇒ ∗) (forAll ∗ (var hd ⇒ var (tl hd) $ var hd))
 
 
+--- Different cases of (G)ADTs to consider
 
 {-
 
-Different cases of (G)ADTs to consider
 
 data Point where
   Point :: Int -> Int -> Point
