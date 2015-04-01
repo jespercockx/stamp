@@ -13,10 +13,11 @@ showCore prog = putMsgS (show prog) >> return prog
 
 instance Show Var where
   show var
-    | isTyVar   var = "(TyVar: "   ++ getOccString var ++ ")"
-    | isTcTyVar var = "(TcTyVar: " ++ getOccString var ++ ")"
-    | isId      var = "(Id: "      ++ qual ++ getOccString var ++ ")"
-    where qual
+    | isTyVar   var = "(TyVar: "   ++ getOccString var ++ " :: " ++ tyStr ++ ")"
+    | isTcTyVar var = "(TcTyVar: " ++ getOccString var ++ " :: " ++ tyStr ++ ")"
+    | isId      var = "(Id: "      ++ qual ++ getOccString var ++ " :: " ++ tyStr ++ ")"
+    where tyStr = show (varType var)
+          qual
             | Just mod <- nameModule_maybe $ idName var
             = moduleNameString (moduleName mod) ++ "."
             | otherwise
