@@ -32,7 +32,7 @@ instance Show Module where
   show _ = "(Module: ?)"
 
 instance Show TyCon where
-  show _ = "(TyCon: ?)"
+  show tc = "(TyCon: " ++ getOccString (tyConName tc) ++ ")"
 
 instance Show CoAxiomRule where
   show _ = "(CoAxiomRule: ?)"
