@@ -1,4 +1,4 @@
-module Find (Named, findInGuts, findInstance) where
+module Find (Named(..), findInGuts, findInstance) where
 
 import Control.Monad (liftM)
 import Data.List (intercalate)
@@ -18,8 +18,9 @@ import TyCon (TyCon)
 import Typechecker
 
 
-type Named = Either Id TyCon
-
+data Named = ID Id
+           | TC TyCon
+           | DC DataCon
 
 
 findInstance :: ModGuts -> Class -> [Type] -> CoreM DFunId
@@ -51,9 +52,9 @@ lookupNamed :: Name -> CoreM Named
 lookupNamed n = do
   tything <- lookupThing n
   case tything of
-    AnId id                   -> return $ Left id
-    ATyCon tc                 -> return $ Right tc
-    AConLike (RealDataCon dc) -> return $ Left $ dataConWrapId dc
+    AnId id                   -> return $ ID id
+    ATyCon tc                 -> return $ TC tc
+    AConLike (RealDataCon dc) -> return $ DC dc --  dataConWrapId
     _                         -> fail "Wrong kind of TyThing"
 
 -- | Helper to call lookupRdrNameInModule
@@ -71,14 +72,14 @@ findNamedBuiltIn rdr_name
   = case [ dc | tc <- wiredInTyCons, dc <- tyConDataCons tc
               , cmpRdrName2Name rdr_name (getName dc) ] of
       []   -> fail "name not in scope."
-      [dc] -> return $ Left $ dataConWrapId dc
+      [dc] -> return $ DC dc -- dataConWrapId
       dcs  -> fail $ "multiple DataCons match: " ++
               intercalate ", " (map unqualifiedName dcs)
   | isTcClsNameSpace (rdrNameSpace rdr_name)
   = case [ tc | tc <- wiredInTyCons
               , cmpRdrName2Name rdr_name (getName tc) ] of
       []   -> fail "type name not in scope."
-      [tc] -> return $ Right tc
+      [tc] -> return $ TC tc
       tcs  -> fail $ "multiple TyCons match: " ++
               intercalate ", " (map unqualifiedName tcs)
   | otherwise

@@ -3,69 +3,68 @@ module HelloWorld where
 open import MyPrelude hiding (_≤_; _<_; _$_; [_]; Show; show)
 open import TypedCore
 open import CoreSyn
-  using (DataCon; mkMachChar; mkMachString; charTyCon;
+  using (mkMachChar; mkMachString; charTyCon;
          listTyCon; unitTyCon; boolTyCon;
          tcNameSpace; varNameSpace; dataNameSpace; clsNameSpace)
 
 postulate
-  `String#`    : ∀ {Σ} → Type Σ ∗
-  trueDataCon : DataCon
-  charDataCon : DataCon
-{-# COMPILED trueDataCon GhcPlugins.trueDataCon #-}
-{-# COMPILED charDataCon GhcPlugins.charDataCon #-}
+  `String#` : ∀ {Σ} → Type Σ ∗
 -- TODO add boxed kind?
 
-`Char` : ∀ {Σ} → Type Σ ∗
-`Char` = foreign (con charTyCon)
 
-`List` : ∀ {Σ} → Type Σ (∗ ⇒ ∗)
-`List` = foreign (con listTyCon)
+charFDC : ForeignDataCon
+charFDC = fcon "GHC.Base" "Char"
+
+`Char` : TyCon ∗
+`Char` = con (fcon "GHC.Base" "Char") [] (charFDC ∷ [])
+
+charDC : DataCon (con `Char` ⇒ con `Char`) -- TODO cheat
+charDC = con charFDC `Char` hd (con `Char` ∷ []) -- TODO cheat
 
 `String` : ∀ {Σ} → Type Σ ∗
-`String` = `List` $ `Char`
+`String` = con `List` $ con `Char`
 
 `Unit` : ∀ {Σ} → Type Σ ∗
-`Unit` = foreign (con unitTyCon)
+`Unit` = con (con (fcon "GHC.Base" "()") [] [])
 
 `IO` : ∀ {Σ} → Type Σ (∗ ⇒ ∗)
-`IO` = foreign (var tcNameSpace "System.IO" "IO")
+`IO` = con (con (fcon "System.IO" "IO") (∗ ∷ []) [])
 
 `putStrLn` : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ (`String` ⇒ `IO` $ `Unit`)
-`putStrLn` = foreign (var varNameSpace "System.IO" "putStrLn")
+`putStrLn` = fvar (fvar "System.IO" "putStrLn")
+
 
 `unpackCStringUtf8#` : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ (`String` ⇒ `String`)
-`unpackCStringUtf8#` = foreign (var varNameSpace "GHC.CString" "unpackCStringUtf8#")
+`unpackCStringUtf8#` = fvar (fvar "GHC.CString" "unpackCStringUtf8#")
 -- TODO maybe a smart constructor? -> Smart constructors for all
 -- literals. Can we do this without losing type-safety by
 -- construction?
 
-char : Char → Expr [] [] `Char`
-char c = foreign (con charDataCon) $ foreign l
-  where
-    l : ForeignExpr [] `Char`
-    l = lit (mkMachChar c)
+-- TODO make this work again
+-- char : Char → Expr [] [] (con `Char`)
+-- char c = con charDC $ lit (flit (mkMachChar c))
+
 
 str : String → Expr [] [] `String`
-str s = `unpackCStringUtf8#` $ foreign (lit (mkMachString s))
+str s = `unpackCStringUtf8#` $ lit (flit (mkMachString s))
 
-`++` : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ (forAll ∗ (`List` $ var hd ⇒ `List` $ var hd ⇒ `List` $ var hd))
-`++` = foreign (var varNameSpace "Data.List" "++")
+
+`++` : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ (forAll ∗ (con `List` $ var hd ⇒ con `List` $ var hd ⇒ con `List` $ var hd))
+`++` = fvar (fvar "Data.List" "++")
+
 
 stringConcat : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ (`String` ⇒ `String` ⇒ `String`)
-stringConcat = lam `String` (lam `String` (`++` [ `Char` ] $ var (tl hd) $ var hd))
+stringConcat = lam `String` (lam `String` (`++` [ con `Char` ] $ var (tl hd) $ var hd))
 
-
-`Bool` : ∀ {Σ} → Type Σ ∗
-`Bool` = foreign (con boolTyCon)
-
-`True` : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ `Bool`
-`True` = foreign (con trueDataCon)
 
 `Show` : ∀ {Σ} → Type Σ (∗ ⇒ ∗)
-`Show` = foreign (var clsNameSpace "GHC.Show" "Show")
+`Show` = con (con (fcon "GHC.Show" "Show") (∗ ∷ []) [])
+
 
 `show` : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ (forAll ∗ ((`Show` $ var hd) ⇒ var hd ⇒ `String`))
-`show` = foreign (var varNameSpace "GHC.Show" "show")
+`show` = fvar (fvar "GHC.Show" "show")
+
+
 
 record ShowC {Σ} (τ : Type Σ ∗) : Set where
   field
@@ -74,19 +73,22 @@ record ShowC {Σ} (τ : Type Σ ∗) : Set where
 open ShowC {{...}} public
 
 
+
 show : ∀ {Σ} {Γ : Cxt Σ} {τ : Type Σ ∗} {{dict : ShowC {Σ} τ}} →
          Expr Σ Γ τ → Expr Σ Γ `String`
 show {τ = τ} e = `show` [ τ ] $ showDict $ e
 
 
-instance
-  `ShowBool` : ∀ {Σ} → ShowC {Σ} `Bool`
-  `ShowBool` = record { showDict = foreign dict }
 
-  `ShowChar` : ∀ {Σ} → ShowC {Σ} `Char`
-  `ShowChar` = record { showDict = foreign dict }
+instance
+  `ShowBool` : ∀ {Σ} → ShowC {Σ} (con `Bool`)
+  `ShowBool` = record { showDict = fdict fdict }
+
+  `ShowChar` : ∀ {Σ} → ShowC {Σ} (con `Char`)
+  `ShowChar` = record { showDict = fdict fdict }
 
 printHelloWorld : Expr [] [] (`IO` $ `Unit`)
-printHelloWorld = `putStrLn` $ (`++` [ `Char` ] $ show (char 'a') $ show `True`)
+printHelloWorld = `putStrLn` $ (`++` [ con `Char` ] $ str "hello" $ show (con `True`))
+-- printHelloWorld = `putStrLn` $ (`++` [ con `Char` ] $ show (char 'a') $ show (con `True`))
 -- printHelloWorld = `putStrLn` $ (stringConcat $ str "hello " $ str "world")
--- printHelloWorld = `putStrLn` $ (`++` [ `Char` ] $ str "hello " $ str "world")
+-- printHelloWorld = `putStrLn` $ (`++` [ con `Char` ] $ str "hello " $ str "world")

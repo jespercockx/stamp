@@ -45,6 +45,8 @@ library
                      , MAlonzo.Code.Prelude.Product
                      , MAlonzo.Code.Prelude.Vec
                      , MAlonzo.Code.Prelude.Fin
+                     , MAlonzo.Code.Prelude.String
+                     , MAlonzo.Code.Prelude.Char
                      , MAlonzo.RTE
 
   build-depends:       base >=4.7 && <4.8

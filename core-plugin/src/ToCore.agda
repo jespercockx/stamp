@@ -8,27 +8,29 @@ open import Data.Traversable using (mapM)
 open import TypedCore
 open import CoreMonad
 open import CoreSyn
-  renaming (Kind to CKind; Type to CType)
+  renaming (Kind to CKind; Type to CType; TyCon to CTyCon; DataCon to CDataCon)
   hiding (Expr)
 
 
 postulate
-  ToCoreM         : Set → Set
-  toCoreMReturn   : ∀ {A : Set} → A → ToCoreM A
-  toCoreMBind     : ∀ {A B : Set} → ToCoreM A → (A → ToCoreM B) → ToCoreM B
-  ModGuts         : Set
-  runToCoreM      : ∀ {A : Set} → ModGuts → ToCoreM A → CoreM A
-  RdrName         : Set
-  qname           : NameSpace → String → String → RdrName
-  lookupForeign   : RdrName → ToCoreM (Either Id TyCon)
-  lookupForeignId : RdrName → ToCoreM Id
-  lookupInstance  : CType → ToCoreM Id
-  withFreshTyVar  : ∀ {A : Set} → CKind → (TyVar → ToCoreM A) → ToCoreM A
-  withFreshVar    : ∀ {A : Set} → CType → (Id → ToCoreM A) → ToCoreM A
-  lookupTyVar     : Int → ToCoreM TyVar
-  lookupVar       : Int → ToCoreM Id
-  mkAppTy         : CType → CType → CType
-  dataConWrapId   : DataCon → Id
+  ToCoreM              : Set → Set
+  toCoreMReturn        : ∀ {A : Set} → A → ToCoreM A
+  toCoreMBind          : ∀ {A B : Set} → ToCoreM A → (A → ToCoreM B) → ToCoreM B
+  ModGuts              : Set
+  runToCoreM           : ∀ {A : Set} → ModGuts → ToCoreM A → CoreM A
+  RdrName              : Set
+  qname                : NameSpace → String → String → RdrName
+  lookupForeignId      : RdrName → ToCoreM Id
+  lookupForeignTyCon   : RdrName → ToCoreM CTyCon
+  lookupForeignDataCon : RdrName → ToCoreM CDataCon
+  lookupInstance       : CType → ToCoreM Id
+  withFreshTyVar       : ∀ {A : Set} → CKind → (TyVar → ToCoreM A) → ToCoreM A
+  withFreshVar         : ∀ {A : Set} → CType → (Id → ToCoreM A) → ToCoreM A
+  lookupTyVar          : Int → ToCoreM TyVar
+  lookupVar            : Int → ToCoreM Id
+  mkAppTy              : CType → CType → CType
+  dataConWrapId        : CDataCon → Id
+  mkWildValBinder      : CType → Id
 
 {-# COMPILED_TYPE ToCoreM ToCoreM.ToCoreM #-}
 {-# COMPILED toCoreMReturn (\_ -> return)  #-}
@@ -40,8 +42,9 @@ postulate
     (\ns qual str -> GhcPlugins.mkQual ns
                   (GhcPlugins.mkFastString qual,
                    GhcPlugins.mkFastString str)) #-}
-{-# COMPILED lookupForeign ToCoreM.lookupForeign #-}
 {-# COMPILED lookupForeignId ToCoreM.lookupForeignId #-}
+{-# COMPILED lookupForeignDataCon ToCoreM.lookupForeignDataCon #-}
+{-# COMPILED lookupForeignTyCon ToCoreM.lookupForeignTyCon #-}
 {-# COMPILED lookupInstance ToCoreM.lookupInstance #-}
 {-# COMPILED withFreshTyVar (\_ -> ToCoreM.withFreshTyVar) #-}
 {-# COMPILED withFreshVar (\_ -> ToCoreM.withFreshVar) #-}
@@ -49,7 +52,7 @@ postulate
 {-# COMPILED lookupVar ToCoreM.lookupVar #-}
 {-# COMPILED mkAppTy GhcPlugins.mkAppTy #-}
 {-# COMPILED dataConWrapId GhcPlugins.dataConWrapId #-}
-
+{-# COMPILED mkWildValBinder GhcPlugins.mkWildValBinder #-}
 
 instance
   MonadToCoreM : Monad ToCoreM
@@ -74,6 +77,12 @@ instance
       tr ∗         = liftedTypeKind
       tr (κ₁ ⇒ κ₂) = mkArrowKind (tr κ₁) (tr κ₂)
 
+  ToCoreForeignTyCon : ToCore ForeignTyCon CTyCon
+  ToCoreForeignTyCon = record { toCore = tr }
+    where
+      tr : ForeignTyCon → ToCoreM CTyCon
+      tr (fcon q s) = lookupForeignTyCon (qname tcNameSpace q s)
+
   ToCoreType : ∀ {Σ κ} → ToCore (Type Σ κ) CType
   ToCoreType = record { toCore = tr }
     where
@@ -84,13 +93,33 @@ instance
       tr (forAll κ τ)  = toCore κ >>= λ ck →
                          withFreshTyVar ck λ tv →
                          ForAllTy tv <$> tr τ
-      tr (foreign f) with f
-      ... | lit l      = pure (LitTy l)
-      ... | con c      = pure (TyConApp c []) -- TODO remove this one
-      ... | var ns q s = lookupForeign (qname ns q s) >>=
-                         pure ∘ either TyVarTy (λ c → TyConApp c [])
+      tr (con c) with c
+      ... | con ftc _ _ = TyConApp <$> toCore ftc <*> pure []
+      tr (lit l) = pure (LitTy l)
+
+  ToCoreForeignDataCon : ToCore ForeignDataCon CDataCon
+  ToCoreForeignDataCon
+    = record { toCore = λ { (fcon q s) →
+                            lookupForeignDataCon (qname dataNameSpace q s) } }
+
+  ToCorePat : ∀ {Σ τ} → ToCore (Pat Σ τ) AltCon
+  ToCorePat = record { toCore = tr }
+    where
+      tr : ∀ {Σ τ} → Pat Σ τ → ToCoreM AltCon
+      tr ̺                    = pure DEFAULT
+      tr (lit l)              = pure (LitAlt l)
+      tr (con (con dc _ _ _)) = DataAlt <$> toCore dc
 
   ToCoreExpr : ∀ {Σ Γ τ} → ToCore (Expr Σ Γ τ) CoreExpr
+  {-# TERMINATING #-}
+
+  ToCoreBranch : ∀ {Σ Γ τ₁ τ₂} → ToCore (Branch Σ Γ τ₁ τ₂) CoreAlt
+  ToCoreBranch = record { toCore = tr }
+    where
+      tr : ∀ {Σ Γ τ₁ τ₂} → Branch Σ Γ τ₁ τ₂ → ToCoreM CoreAlt
+      tr (alt p e) = triple <$> toCore p <*> pure [] <*> toCore e
+      -- TODO replace empty list
+
   ToCoreExpr = record { toCore = tr }
     where
       tr : ∀ {Σ Γ τ} → Expr Σ Γ τ → ToCoreM CoreExpr
@@ -103,8 +132,13 @@ instance
       tr (Λ κ e)   = toCore κ >>= λ ck →
                      withFreshTyVar ck λ tv →
                      Lam tv <$> tr e
-      tr {τ = τ} (foreign f) with f
-      ... | lit l      = pure (Lit l)
-      ... | con c      = pure (Var' (dataConWrapId c))
-      ... | var ns q s = Var' <$> lookupForeignId (qname ns q s)
-      ... | dict       = toCore τ >>= λ ct → Var' <$> lookupInstance ct
+      tr (con c) with c
+      ... | con dc _ _ _   = Var' ∘ dataConWrapId <$> toCore dc
+      tr (lit (flit l))    = pure (Lit l)
+      tr (fvar (fvar q s)) = Var' <$> lookupForeignId (qname varNameSpace q s)
+      tr {τ = τ} (fdict fdict) = toCore τ >>= λ ct → Var' <$> lookupInstance ct
+      tr (match sc bs) = toCore (exprType sc) >>= λ scCType →
+                         Case <$> toCore sc <*>
+                                  pure (mkWildValBinder scCType) <*>
+                                  pure scCType <*>
+                                  mapM toCore bs

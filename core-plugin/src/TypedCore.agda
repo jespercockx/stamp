@@ -1,9 +1,11 @@
 module TypedCore where
 
+{-# IMPORT TysWiredIn #-}
+
 open import MyPrelude hiding (_$_; [_])
 open import CoreSyn
-  hiding (module Type; module Expr; Expr)
-  renaming (Kind to CKind; Type to CType; TyCon to CTyCon; DataCon to CDataCon)
+  hiding (module Type; module Expr; Expr; TyCon; DataCon)
+  renaming (Kind to CKind; Type to CType)
 
 data Kind : Set where
   ∗   : Kind
@@ -16,24 +18,26 @@ Context = List
 TyCxt : Set
 TyCxt = Context Kind
 
-data TyCon (κ : Kind) : Set
+Module : Set
+Module = String
 
-data ForeignTy (κ : Kind) : Set where
-  lit : TyLit → ForeignTy κ
-  var : NameSpace → String → String → ForeignTy κ
+Ident : Set
+Ident = String
+
+
+data TyCon (κ : Kind) : Set
 
 infixr 2 _⇒_
 
 infixl 3 _$_
 
 data Type (Σ : TyCxt) : Kind → Set where
-  var     : ∀ {κ} → κ ∈ Σ → Type Σ κ
-  _$_     : ∀ {κ₁ κ₂} → Type Σ (κ₁ ⇒ κ₂) → Type Σ κ₁ → Type Σ κ₂
-  _⇒_     : Type Σ ∗ → Type Σ ∗ → Type Σ ∗
-  forAll  : ∀ κ → Type (κ ∷ Σ) ∗ → Type Σ ∗
-  con     : ∀ {κ} → TyCon κ → Type Σ κ
-  foreign : ∀ {κ} → ForeignTy κ → Type Σ κ
-
+  var    : ∀ {κ} → κ ∈ Σ → Type Σ κ
+  _$_    : ∀ {κ₁ κ₂} → Type Σ (κ₁ ⇒ κ₂) → Type Σ κ₁ → Type Σ κ₂
+  _⇒_    : Type Σ ∗ → Type Σ ∗ → Type Σ ∗
+  forAll : ∀ κ → Type (κ ∷ Σ) ∗ → Type Σ ∗
+  con    : ∀ {κ} → TyCon κ → Type Σ κ
+  lit    : ∀ {κ} → TyLit → Type Σ κ -- TODO separate constructor?
 
 Cxt : TyCxt → Set
 Cxt Σ = Context (Type Σ ∗)
@@ -47,22 +51,28 @@ data Saturates : TyCxt → Kind → Set where
 satTyCxt : ∀ {Σ} {κ} → Saturates Σ κ → TyCxt
 satTyCxt {Σ} _ = Σ
 
-saturateTyCon : ∀ {Σ κ} → Saturates Σ κ → Type Σ κ → Type Σ ∗
-saturateTyCon = go ⊆-refl
+saturateType : ∀ {Σ κ} → Saturates Σ κ → Type Σ κ → Type Σ ∗
+saturateType = go ⊆-refl
   where
     go : ∀ {Σ Σ′ κ} → Σ ⊆ Σ′ → Saturates Σ κ → Type Σ′ κ → Type Σ′ ∗
     go _ [] τ = τ
     go p (κ₁ ∷ sat) τ = go (λ z → p (tl z)) sat (τ $ var (p hd))
 
+data ForeignTyCon : Set where
+  fcon : Module → Ident → ForeignTyCon
+
+data ForeignDataCon : Set where
+  fcon : Module → Ident → ForeignDataCon
+
 data TyCon κ where
-  con : ∀ {Σ} → CTyCon → Saturates Σ κ → List CDataCon → TyCon κ
+  con : ∀ {Σ} → ForeignTyCon → Saturates Σ κ → List ForeignDataCon → TyCon κ
 
 tyConArgs : ∀ {κ} → TyCon κ → TyCxt
 tyConArgs (con _ sat _) = satTyCxt sat
 
 tyConType : ∀ {κ} → (tc : TyCon κ) → Type (tyConArgs tc) ∗
 tyConType tc with tc
-... | con _ sat _ = saturateTyCon sat (con tc)
+... | con _ sat _ = saturateType sat (con tc)
 
 --- Weakening and substitution
 
@@ -72,7 +82,7 @@ weakenType (τ₁ $ τ₂)    p = weakenType τ₁ p $ weakenType τ₂ p
 weakenType (τ₁ ⇒ τ₂)    p = weakenType τ₁ p ⇒ weakenType τ₂ p
 weakenType (forAll κ τ) p = forAll κ (weakenType τ (⊆-keep p))
 weakenType (con c)      p = con c
-weakenType (foreign f)  p = foreign f
+weakenType (lit l)      p = lit l
 
 weakenCxt : ∀ {Σ₁ Σ₂} → Cxt Σ₁ → Σ₁ ⊆ Σ₂ → Cxt Σ₂
 weakenCxt [] _ = []
@@ -90,11 +100,11 @@ substTop τ (t₁ ⇒ t₂)    = substTop τ t₁ ⇒ substTop τ t₂
 substTop τ (forAll κ t) = forAll κ (substTop (weakenType τ (⊆-skip ⊆-refl))
                                              (weakenType t ⊆-swap))
 substTop τ (con c)      = con c
-substTop τ (foreign f)  = foreign f
+substTop τ (lit l)      = lit l
 
 --- Expr and related data types
 
-_constrOf_ : ∀ {κ} → CDataCon → TyCon κ → Set
+_constrOf_ : ∀ {κ} → ForeignDataCon → TyCon κ → Set
 cdc constrOf (con _ _ cdcs) = cdc ∈ cdcs
 
 
@@ -104,16 +114,20 @@ mkFun (τ₁ ∷ Γ) τ = mkFun Γ (τ₁ ⇒ τ)
 
 data DataCon : {Σ : TyCxt} → Type Σ ∗ → Set where
   con : ∀ {κ}
-          (cdc : CDataCon) →
+          (cdc : ForeignDataCon) →
           (tc : TyCon κ) →
           cdc constrOf tc →
           (args : Cxt (tyConArgs tc)) →
           DataCon (mkFun args (tyConType tc))
 
-data ForeignExpr (Σ : TyCxt) (τ : Type Σ ∗) : Set where
-  lit  : Literal → ForeignExpr Σ τ
-  var  : NameSpace → String → String → ForeignExpr Σ τ
-  dict : ForeignExpr Σ τ
+data ForeignLit (Σ : TyCxt) (τ : Type Σ ∗) : Set where
+  flit : Literal → ForeignLit Σ τ
+
+data ForeignVar (Σ : TyCxt) (τ : Type Σ ∗) : Set where
+  fvar : Module → Ident → ForeignVar Σ τ
+
+data ForeignDict (Σ : TyCxt) (τ : Type Σ ∗) : Set where
+  fdict : ForeignDict Σ τ
 
 data Branch (Σ : TyCxt) (Γ : Cxt Σ) : Type Σ ∗ → Type Σ ∗ → Set
 
@@ -125,49 +139,64 @@ data Expr (Σ : TyCxt) (Γ : Cxt Σ) : Type Σ ∗ → Set where
   lam     : ∀ τ₁ {τ₂} → Expr Σ (τ₁ :: Γ) τ₂ → Expr Σ Γ (τ₁ ⇒ τ₂)
   Λ       : ∀ κ {τ} → Expr (κ :: Σ) (weakenCxt Γ (⊆-skip ⊆-refl)) τ →
             Expr Σ Γ (forAll κ τ)
-  con     : ∀ {τ} → DataCon τ → Expr Σ Γ τ
-  foreign : ∀ {τ} → ForeignExpr Σ τ → Expr Σ Γ τ
+  con     : ∀ {τ} → DataCon {Σ} τ → Expr Σ Γ τ
+  lit     : ∀ {τ} → ForeignLit Σ τ → Expr Σ Γ τ
+  fvar    : ∀ {τ} → ForeignVar Σ τ → Expr Σ Γ τ
+  fdict   : ∀ {τ} → ForeignDict Σ τ → Expr Σ Γ τ -- TODO Constraint kind?
   match   : ∀ {τ₁ τ₂} → Expr Σ Γ τ₁ → List (Branch Σ Γ τ₁ τ₂) → Expr Σ Γ τ₂
 
-  -- Case  : Expr b → b → Type → List (Alt b) → Expr b
-
-data Pat {Σ : TyCxt} : Type Σ ∗ → Set where
-  ̺   : ∀ {τ} → Pat {Σ} τ
+data Pat (Σ : TyCxt) : Type Σ ∗ → Set where
+  ̺   : ∀ {τ} → Pat Σ τ
   -- TODO unsafe: Literal can have another type
-  lit : ∀ {τ} → Literal → Pat {Σ} τ
+  lit : ∀ {τ} → Literal → Pat Σ τ
   -- TODO unsafe: DataCon can have another type
-  con : ∀ {τ} → DataCon τ → Pat {Σ} τ
+  con : ∀ {τ} → DataCon τ → Pat Σ τ
 
 data Branch Σ Γ where
-  alt : ∀ {τ₁ τ₂} → Pat {Σ} τ₁ → Expr Σ Γ τ₂ → Branch Σ Γ τ₁ τ₂
+  alt : ∀ {τ₁ τ₂} → Pat Σ τ₁ → Expr Σ Γ τ₂ → Branch Σ Γ τ₁ τ₂
 
+-- TODO encode exhaustiveness and correct ordering of constructors in
+-- the datatype
+
+-- TODO other typing rulres on 13 of core-spec.pdf
+
+
+exprType : ∀ {Σ Γ τ} → Expr Σ Γ τ → Type Σ ∗
+exprType {τ = τ} _ = τ
 
 --- Example ADT: Bool
 
+trueDC : ForeignDataCon
+trueDC = fcon "GHC.Base" "True"
+
+falseDC : ForeignDataCon
+falseDC = fcon "GHC.Base" "False"
+
 `Bool` : TyCon ∗
-`Bool` = con boolTyCon [] (trueDataCon ∷ falseDataCon ∷ [])
+`Bool` = con (fcon "GHC.Base" "Bool") [] (trueDC ∷ falseDC ∷ [])
 
 `True` : DataCon (con `Bool`)
-`True` = con trueDataCon `Bool` hd []
+`True` = con trueDC `Bool` hd []
 
 `False` : DataCon (con `Bool`)
-`False` = con falseDataCon `Bool` (tl hd) []
+`False` = con falseDC `Bool` (tl hd) []
 
 --- Example ADT: Maybe
-postulate
-  maybeTyCon     : CTyCon
-  justDataCon    : CDataCon
-  nothingDataCon : CDataCon
 
+nothingDC : ForeignDataCon
+nothingDC = fcon "Data.Maybe" "Nothing"
+
+justDC : ForeignDataCon
+justDC = fcon "Data.Maybe" "Just"
 
 `Maybe` : TyCon (∗ ⇒ ∗)
-`Maybe` = con maybeTyCon (∗ ∷ []) (nothingDataCon ∷ justDataCon ∷ [])
+`Maybe` = con (fcon "Data.Maybe" "Maybe") (∗ ∷ []) (nothingDC ∷ justDC ∷ [])
 
 `Nothing` : DataCon (con `Maybe` $ var hd)
-`Nothing` = con nothingDataCon `Maybe` hd []
+`Nothing` = con nothingDC `Maybe` hd []
 
 `Just` : DataCon (var hd ⇒ con `Maybe` $ var hd)
-`Just` = con justDataCon `Maybe` (tl hd) (var hd ∷ [])
+`Just` = con justDC `Maybe` (tl hd) (var hd ∷ [])
 
 --- Try pattern matching
 
@@ -179,7 +208,34 @@ postulate
     falseCase : Branch [] (con `Bool` ∷ []) (con `Bool`) (con `Bool`)
     falseCase = alt (con `False`) (con `True`)
 
--- TODO check exhaustiveness
+
+--- Example ADT: List
+
+nilDC : ForeignDataCon
+nilDC = fcon "GHC.Base" "[]"
+
+consDC : ForeignDataCon
+consDC = fcon "GHC.Base" "::"
+
+`List` : TyCon (∗ ⇒ ∗)
+`List` = con (fcon "GHC.Base" "[]") (∗ ∷ []) (nilDC ∷ consDC ∷ [])
+
+`Nil` : DataCon (con `List` $ var hd)
+`Nil` = con nilDC `List` hd []
+
+`Cons` : DataCon (var hd ⇒ con `List` $ var hd ⇒ con `List` $ var hd)
+`Cons` = con consDC `List` (tl hd) ((con `List` $ var hd) ∷ var hd ∷ [])
+
+-- TODO order is reversed in third arg of con : DataCon
+
+`maybeToList'` : Expr [] [] (forAll ∗ (con `Maybe` $ var hd ⇒ con `List` $ var hd))
+`maybeToList'` = Λ ∗ (lam (con `Maybe` $ var hd) (match (var hd) (nothingCase ∷ justCase ∷ [] )))
+  where
+    nothingCase : Branch (∗ ∷ []) ((con `Maybe` $ var hd) ∷ []) (con `Maybe` $ var hd) (con `List` $ var hd)
+    nothingCase = alt (con `Nothing`) (con `Nil`)
+    justCase : Branch (∗ ∷ []) ((con `Maybe` $ var hd) ∷ []) (con `Maybe` $ var hd) (con `List` $ var hd)
+    justCase = alt (con `Nothing`) (con `Nil`) -- TODO change to Just
+-- TODO case x of { Just a -> ... } no way to express 'a'
 
 --- Different cases of (G)ADTs to consider
 {-

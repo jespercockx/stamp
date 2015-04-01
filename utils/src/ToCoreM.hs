@@ -42,15 +42,25 @@ lookupForeignId :: RdrName -> ToCoreM Id
 lookupForeignId rdr_name = do
   n <- lookupForeign rdr_name
   case n of
-    Left id -> return id
-    Right _ -> panicDoc "Found a TyCon instead of an Id:" (ppr rdr_name)
+    ID id -> return id
+    TC _  -> panicDoc "Found a TyCon instead of an Id:" (ppr rdr_name)
+    DC _  -> panicDoc "Found a DataCon instead of an Id:" (ppr rdr_name)
 
 lookupForeignTyCon :: RdrName -> ToCoreM TyCon
 lookupForeignTyCon rdr_name = do
   n <- lookupForeign rdr_name
   case n of
-    Left _      -> panicDoc "Found an Id instead of a TyCon:" (ppr rdr_name)
-    Right tycon -> return tycon
+    ID _  -> panicDoc "Found an Id instead of a TyCon:" (ppr rdr_name)
+    TC tc -> return tc
+    DC _  -> panicDoc "Found an DataCon instead of a TyCon:" (ppr rdr_name)
+
+lookupForeignDataCon :: RdrName -> ToCoreM DataCon
+lookupForeignDataCon rdr_name = do
+  n <- lookupForeign rdr_name
+  case n of
+    ID _  -> panicDoc "Found an Id instead of a DataCon:" (ppr rdr_name)
+    TC _  -> panicDoc "Found an TyCon instead of a DataCon:" (ppr rdr_name)
+    DC dc -> return dc
 
 lookupInstance :: Type -> ToCoreM Id
 lookupInstance ty

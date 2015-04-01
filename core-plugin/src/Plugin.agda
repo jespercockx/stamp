@@ -63,9 +63,6 @@ printBinders : CoreProgram → CoreM Unit
 printBinders prog = mapM (putMsgS ∘ getOccString) (binders prog) >>
                     return tt
 
-idFun : ModGuts → CoreM CoreExpr
-idFun guts = runToCoreM guts (toCore (ex₁ {[]} {[]}))
-
 
 pick : ModGuts → CoreM CoreExpr
 pick guts = runToCoreM guts (toCore pick1Of3)
@@ -73,8 +70,11 @@ pick guts = runToCoreM guts (toCore pick1Of3)
 hello : ModGuts → CoreM CoreExpr
 hello guts = runToCoreM guts (toCore printHelloWorld)
 
+notProgram : ModGuts → CoreM CoreExpr
+notProgram guts = runToCoreM guts (toCore `not`)
+
 agdaMetaPass : List CommandLineOption → ModGuts → CoreProgram → CoreM CoreProgram
-agdaMetaPass options guts prog = replaceAgdaWith′ (hello guts) prog
+agdaMetaPass options guts prog = replaceAgdaWith′ (notProgram guts) prog
 {-# COMPILED_EXPORT agdaMetaPass agdaMetaPass #-}
 
 
