@@ -45,6 +45,13 @@ instance
 
 
 
+catMaybes : ∀ {A : Set} → List (Maybe A) → List A
+catMaybes [] = []
+catMaybes (nothing ∷ l) = catMaybes l
+catMaybes (just x ∷ l) = x ∷ catMaybes l
+
+mapMaybe : ∀ {A B : Set} → (A → Maybe B) → List A → List B
+mapMaybe f = catMaybes ∘ map f
 
 ++-[] : ∀ {A : Set} {xs : List A} → xs ++ [] ≡ xs
 ++-[] {xs = []} = refl
