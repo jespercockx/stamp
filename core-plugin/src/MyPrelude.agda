@@ -123,6 +123,9 @@ xs ⊈ ys = ¬ (xs ⊆ ys)
 ⊆-refl : ∀ {A : Set} {xs : List A} → xs ⊆ xs
 ⊆-refl = id
 
+⊆-empty : ∀ {A : Set} {xs : List A} → [] ⊆ xs
+⊆-empty ()
+
 ⊆-swap : ∀ {A : Set} {x y : A} {xs : List A} → (x ∷ y ∷ xs) ⊆ (y ∷ x ∷ xs)
 ⊆-swap hd = tl hd
 ⊆-swap (tl hd) = hd

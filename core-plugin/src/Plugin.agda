@@ -70,11 +70,11 @@ pick guts = runToCoreM guts (toCore pick1Of3)
 hello : ModGuts → CoreM CoreExpr
 hello guts = runToCoreM guts (toCore printHelloWorld)
 
-notProgram : ModGuts → CoreM CoreExpr
-notProgram guts = runToCoreM guts (toCore `not`)
+program : ModGuts → CoreM CoreExpr
+program guts = runToCoreM guts (toCore `maybeToList`)
 
 agdaMetaPass : List CommandLineOption → ModGuts → CoreProgram → CoreM CoreProgram
-agdaMetaPass options guts prog = replaceAgdaWith′ (notProgram guts) prog
+agdaMetaPass options guts prog = replaceAgdaWith′ (program guts) prog
 {-# COMPILED_EXPORT agdaMetaPass agdaMetaPass #-}
 
 

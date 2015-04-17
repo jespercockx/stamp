@@ -16,19 +16,19 @@ charFDC : ForeignDataCon
 charFDC = fcon "GHC.Base" "Char"
 
 `Char` : TyCon ∗
-`Char` = con (fcon "GHC.Base" "Char") [] (charFDC ∷ [])
+`Char` = con (fcon "GHC.Base" "Char") (charFDC ∷ [])
 
-charDC : DataCon (con `Char` ⇒ con `Char`) -- TODO cheat
+charDC : DataCon `Char` -- TODO cheat
 charDC = con charFDC `Char` hd (con `Char` ∷ []) -- TODO cheat
 
 `String` : ∀ {Σ} → Type Σ ∗
 `String` = con `List` $ con `Char`
 
 `Unit` : ∀ {Σ} → Type Σ ∗
-`Unit` = con (con (fcon "GHC.Base" "()") [] [])
+`Unit` = con (con (fcon "GHC.Base" "()") [])
 
 `IO` : ∀ {Σ} → Type Σ (∗ ⇒ ∗)
-`IO` = con (con (fcon "System.IO" "IO") (∗ ∷ []) [])
+`IO` = con (con (fcon "System.IO" "IO") [])
 
 `putStrLn` : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ (`String` ⇒ `IO` $ `Unit`)
 `putStrLn` = fvar (fvar "System.IO" "putStrLn")
@@ -58,7 +58,7 @@ stringConcat = lam `String` (lam `String` (`++` [ con `Char` ] $ var (tl hd) $ v
 
 
 `Show` : ∀ {Σ} → Type Σ (∗ ⇒ ∗)
-`Show` = con (con (fcon "GHC.Show" "Show") (∗ ∷ []) [])
+`Show` = con (con (fcon "GHC.Show" "Show") [])
 
 
 `show` : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ (forAll ∗ ((`Show` $ var hd) ⇒ var hd ⇒ `String`))

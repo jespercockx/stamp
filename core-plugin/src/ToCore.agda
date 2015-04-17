@@ -26,6 +26,7 @@ postulate
   lookupInstance       : CType → ToCoreM Id
   withFreshTyVar       : ∀ {A : Set} → CKind → (TyVar → ToCoreM A) → ToCoreM A
   withFreshVar         : ∀ {A : Set} → CType → (Id → ToCoreM A) → ToCoreM A
+  withFreshVars        : ∀ {A : Set} → List CType → (List Id → ToCoreM A) → ToCoreM A
   lookupTyVar          : Int → ToCoreM TyVar
   lookupVar            : Int → ToCoreM Id
   mkAppTy              : CType → CType → CType
@@ -48,6 +49,7 @@ postulate
 {-# COMPILED lookupInstance ToCoreM.lookupInstance #-}
 {-# COMPILED withFreshTyVar (\_ -> ToCoreM.withFreshTyVar) #-}
 {-# COMPILED withFreshVar (\_ -> ToCoreM.withFreshVar) #-}
+{-# COMPILED withFreshVars (\_ -> ToCoreM.withFreshVars) #-}
 {-# COMPILED lookupTyVar ToCoreM.lookupTyVar #-}
 {-# COMPILED lookupVar ToCoreM.lookupVar #-}
 {-# COMPILED mkAppTy GhcPlugins.mkAppTy #-}
@@ -94,7 +96,7 @@ instance
                          withFreshTyVar ck λ tv →
                          ForAllTy tv <$> tr τ
       tr (con c) with c
-      ... | con ftc _ _ = TyConApp <$> toCore ftc <*> pure []
+      ... | con ftc _ = TyConApp <$> toCore ftc <*> pure []
       tr (lit l) = pure (LitTy l)
 
   ToCoreForeignDataCon : ToCore ForeignDataCon CDataCon
@@ -108,7 +110,7 @@ instance
       tr : ∀ {Σ τ} → Pat Σ τ → ToCoreM AltCon
       tr ̺                    = pure DEFAULT
       tr (lit l)              = pure (LitAlt l)
-      tr (con (con dc _ _ _)) = DataAlt <$> toCore dc
+      tr (con _ (con dc _ _ _)) = DataAlt <$> toCore dc
 
   ToCoreExpr : ∀ {Σ Γ τ} → ToCore (Expr Σ Γ τ) CoreExpr
   {-# TERMINATING #-}
@@ -117,8 +119,9 @@ instance
   ToCoreBranch = record { toCore = tr }
     where
       tr : ∀ {Σ Γ τ₁ τ₂} → Branch Σ Γ τ₁ τ₂ → ToCoreM CoreAlt
-      tr (alt p e) = triple <$> toCore p <*> pure [] <*> toCore e
-      -- TODO replace empty list
+      tr (alt p e) = mapM toCore (patBinders p) >>= (λ binderTypes →
+                     withFreshVars binderTypes λ binders →
+                     triple <$> toCore p <*> pure binders <*> toCore e)
 
   ToCoreExpr = record { toCore = tr }
     where
@@ -137,10 +140,13 @@ instance
       tr (lit (flit l))    = pure (Lit l)
       tr (fvar (fvar q s)) = Var' <$> lookupForeignId (qname varNameSpace q s)
       tr {τ = τ} (fdict fdict) = toCore τ >>= λ ct → Var' <$> lookupInstance ct
-      tr {τ = τ} (match sc bs)
+      tr {τ = τ} (match sc bs _)
         = toCore (exprType sc) >>= λ scCType →
           toCore τ >>= λ resCType →
           Case <$> toCore sc <*>
                    pure (mkWildValBinder scCType) <*>
                    pure resCType <*>
                    mapM toCore bs
+        where
+          exprType : ∀ {Σ Γ τ} → Expr Σ Γ τ → Type Σ ∗
+          exprType {τ = τ} _ = τ

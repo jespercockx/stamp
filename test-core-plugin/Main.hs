@@ -8,16 +8,14 @@ main :: IO ()
 -- main = agda
 main = putStrLn "hello world" -- ("Hello World: " ++ show ((agda :: Bool -> Bool) True))
 
-notHs = \x -> case x of
-  True -> False
-  False -> True
+-- notAgda :: Bool -> Bool
+-- notAgda = agda
 
-notAgda = agda
+maybeToList :: Maybe a -> [a]
+maybeToList = agda
 
--- barry :: a -> b -> c -> b
--- barry = agda
-
-
+-- maybeToListBool :: Maybe Bool -> [Bool]
+-- maybeToListBool = agda
 
 -- food :: IO ()
 -- food = putStrLn "hello"
