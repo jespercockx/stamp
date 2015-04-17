@@ -32,7 +32,7 @@ infixr 2 _⇒_
 infixl 3 _$_
 
 data Type (Σ : TyCxt) : Kind → Set where
-  var    : ∀ {κ} → κ ∈ Σ → Type Σ κ
+  tvar   : ∀ {κ} → κ ∈ Σ → Type Σ κ
   _$_    : ∀ {κ₁ κ₂} → Type Σ (κ₁ ⇒ κ₂) → Type Σ κ₁ → Type Σ κ₂
   _⇒_    : Type Σ ∗ → Type Σ ∗ → Type Σ ∗
   forAll : ∀ κ → Type (κ ∷ Σ) ∗ → Type Σ ∗
@@ -77,7 +77,7 @@ saturateType {κ} = go (saturate κ) ⊆-refl
   where
     go : ∀ {Σ κ} → (sat : Saturates κ) → satTyCxt sat ⊆ Σ → Type Σ κ → Type Σ ∗
     go []         _ τ = τ
-    go (κ₁ ∷ sat) p τ = go sat (λ z → p (tl z)) (τ $ var (p hd))
+    go (κ₁ ∷ sat) p τ = go sat (λ z → p (tl z)) (τ $ tvar (p hd))
 
 data ForeignTyCon : Set where
   fcon : Module → Ident → ForeignTyCon
@@ -100,7 +100,7 @@ tyConConstructors (con _ cs) = cs
 --- Weakening and substitution
 
 weakenType : ∀ {Σ₁ Σ₂ κ} → Type Σ₁ κ → Σ₁ ⊆ Σ₂ → Type Σ₂ κ
-weakenType (var i)      p = var (∈-over-⊆ p i)
+weakenType (tvar i)     p = tvar (∈-over-⊆ p i)
 weakenType (τ₁ $ τ₂)    p = weakenType τ₁ p $ weakenType τ₂ p
 weakenType (τ₁ ⇒ τ₂)    p = weakenType τ₁ p ⇒ weakenType τ₂ p
 weakenType (forAll κ τ) p = forAll κ (weakenType τ (⊆-keep p))
@@ -116,14 +116,14 @@ shift τ = weakenType τ (⊆-skip ⊆-refl)
 
 {-# TERMINATING #-}
 substTop : ∀ {Σ κ κ′} → Type Σ κ′ → Type (κ′ ∷ Σ) κ → Type Σ κ
-substTop τ (var hd)     = τ
-substTop τ (var (tl x)) = var x
-substTop τ (t₁ $ t₂)    = substTop τ t₁ $ substTop τ t₂
-substTop τ (t₁ ⇒ t₂)    = substTop τ t₁ ⇒ substTop τ t₂
-substTop τ (forAll κ t) = forAll κ (substTop (weakenType τ (⊆-skip ⊆-refl))
+substTop τ (tvar hd)     = τ
+substTop τ (tvar (tl x)) = tvar x
+substTop τ (t₁ $ t₂)     = substTop τ t₁ $ substTop τ t₂
+substTop τ (t₁ ⇒ t₂)     = substTop τ t₁ ⇒ substTop τ t₂
+substTop τ (forAll κ t)  = forAll κ (substTop (weakenType τ (⊆-skip ⊆-refl))
                                              (weakenType t ⊆-swap))
-substTop τ (con c)      = con c
-substTop τ (lit l)      = lit l
+substTop τ (con c)       = con c
+substTop τ (lit l)       = lit l
 
 --- Expr and related data types
 
@@ -221,12 +221,12 @@ transplantVar (tl n) (p ∷ τs) = transplantVar n τs
 
 transplant : ∀ {κ Σ Σ′} → Types Σ′ Σ →
                Type Σ κ → Type Σ′ κ
-transplant τs (var n) = transplantVar n τs
-transplant τs (τ₁ $ τ₂) = transplant τs τ₁ $ transplant τs τ₂
-transplant τs (τ₁ ⇒ τ₂) = transplant τs τ₁ ⇒ transplant τs τ₂
-transplant τs (forAll κ τ) = forAll κ (transplant (var hd ∷ weakenTypes τs) τ)
-transplant τs (con c) = con c
-transplant τs (lit l) = lit l
+transplant τs (tvar n)     = transplantVar n τs
+transplant τs (τ₁ $ τ₂)    = transplant τs τ₁ $ transplant τs τ₂
+transplant τs (τ₁ ⇒ τ₂)    = transplant τs τ₁ ⇒ transplant τs τ₂
+transplant τs (forAll κ τ) = forAll κ (transplant (tvar hd ∷ weakenTypes τs) τ)
+transplant τs (con c)      = con c
+transplant τs (lit l)      = lit l
 
 
 patBinders : ∀ {Σ τ} → Pat Σ τ → Cxt Σ
@@ -279,7 +279,7 @@ justDC = fcon "Data.Maybe" "Just"
 `Nothing` = con nothingDC `Maybe` hd []
 
 `Just` : DataCon `Maybe`
-`Just` = con justDC `Maybe` (tl hd) (var hd ∷ [])
+`Just` = con justDC `Maybe` (tl hd) (tvar hd ∷ [])
 
 --- Try pattern matching
 `not` : Expr [] [] (con `Bool` ⇒ con `Bool`)
@@ -306,7 +306,7 @@ consDC = fcon "GHC.Types" ":"
 `Nil` = con nilDC `List` hd []
 
 `Cons` : DataCon `List`
-`Cons` = con consDC `List` (tl hd) ((con `List` $ var hd) ∷ var hd ∷ [])
+`Cons` = con consDC `List` (tl hd) ((con `List` $ tvar hd) ∷ tvar hd ∷ [])
 
 
 `maybeToListBool` : Expr [] [] ((con `Maybe` $ con `Bool`) ⇒ (con `List` $ con `Bool`))
@@ -324,19 +324,19 @@ consDC = fcon "GHC.Types" ":"
                    (con `Cons` [ _ ] $ var hd $ con `Nil` [ _ ])
 
 
-`maybeToList` : Expr [] [] (forAll ∗ (con `Maybe` $ var hd ⇒ con `List` $ var hd))
-`maybeToList` = Λ ∗ (lam (con `Maybe` $ var hd)
+`maybeToList` : Expr [] [] (forAll ∗ (con `Maybe` $ tvar hd ⇒ con `List` $ tvar hd))
+`maybeToList` = Λ ∗ (lam (con `Maybe` $ tvar hd)
                          (match (var hd)
                                 (nothingCase ∷ justCase ∷ [])
                                 refl))
   where
-    nothingCase : Branch (∗ ∷ []) ((con `Maybe` $ var hd) ∷ [])
-                         (con `Maybe` $ var hd) (con `List` $ var hd)
-    nothingCase = alt (con (var hd ∷ []) `Nothing`)
+    nothingCase : Branch (∗ ∷ []) ((con `Maybe` $ tvar hd) ∷ [])
+                         (con `Maybe` $ tvar hd) (con `List` $ tvar hd)
+    nothingCase = alt (con (tvar hd ∷ []) `Nothing`)
                       (con `Nil` [ _ ])
-    justCase : Branch (∗ ∷ []) ((con `Maybe` $ var hd) ∷ [])
-                      (con `Maybe` $ var hd) (con `List` $ var hd)
-    justCase = alt (con (var hd ∷ []) `Just`)
+    justCase : Branch (∗ ∷ []) ((con `Maybe` $ tvar hd) ∷ [])
+                      (con `Maybe` $ tvar hd) (con `List` $ tvar hd)
+    justCase = alt (con (tvar hd ∷ []) `Just`)
                    (con `Cons` [ _ ] $ var hd $ con `Nil` [ _ ])
 
 --- Different cases of (G)ADTs to consider

@@ -89,7 +89,7 @@ instance
   ToCoreType = record { toCore = tr }
     where
       tr : ∀ {Σ κ} → Type Σ κ → ToCoreM CType
-      tr (var k)       = TyVarTy <$> lookupTyVar (fromNat (∈2i k))
+      tr (tvar k)      = TyVarTy <$> lookupTyVar (fromNat (∈2i k))
       tr (τ₁ $ τ₂)     = mkAppTy <$> tr τ₁ <*> tr τ₂
       tr (τ₁ ⇒ τ₂)     = FunTy <$> tr τ₁ <*> tr τ₂
       tr (forAll κ τ)  = toCore κ >>= λ ck →

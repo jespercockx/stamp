@@ -43,7 +43,7 @@ mkTyCxt (suc n) = ∗ ∷ (mkTyCxt n)
 -- mkTypeVarT m n p maakt een verwijzing naar de m-de typevariabele in de typecontext (mkTyCxt n)
 mkTypeVarT : (m n : Nat) → m < n → Type (mkTyCxt n) ∗
 mkTypeVarT m       zero    ()
-mkTypeVarT zero    (suc n) p       = var hd
+mkTypeVarT zero    (suc n) p       = tvar hd
 mkTypeVarT (suc m) (suc n) (s≤s p) = weakenType (mkTypeVarT m n p) (⊆-skip ⊆-refl)
 
 -- mkTypeFun xs t maakt een type van functies door alle types uit de context xs achter elkaar te plaatsten. (vb. mkTypeFun [a,b,c] t = c ⇒ b ⇒ a ⇒ t)
@@ -59,7 +59,7 @@ mkTypeAllT {x ∷ Σ} τ = mkTypeAllT (forAll x τ)
 -- mkCxt n maakt een context van lengte n, bestaande uit verwijzingen naar alle typevariabelen in de typecontext (mkTyCxt n)
 mkCxt : (n : Nat) → Cxt (mkTyCxt n)
 mkCxt zero    = []
-mkCxt (suc n) = var hd ∷ weakenCxt (mkCxt n) (⊆-skip ⊆-refl)
+mkCxt (suc n) = tvar hd ∷ weakenCxt (mkCxt n) (⊆-skip ⊆-refl)
 
 -- mkPickTRev m n p maakt het type van de voorstelling van de functie (pick (n-(m+1)) of n)
 mkPickTRev : (m n : Nat) → m < n → Type [] ∗
@@ -98,5 +98,5 @@ mkPick m .(suc n) (s≤s {.m} {n} p) = mkPickRev ((suc n) ∸ (suc m)) (suc n) (
 
 
 pick1Of3 : Expr [] [] (forAll ∗ (forAll ∗ (forAll ∗
-                                   (var (tl (tl hd)) ⇒ var (tl hd) ⇒ var hd ⇒ var (tl hd)))))
+                                   (tvar (tl (tl hd)) ⇒ tvar (tl hd) ⇒ tvar hd ⇒ tvar (tl hd)))))
 pick1Of3 = mkPick 1 3 (s≤s (s≤s z≤n))

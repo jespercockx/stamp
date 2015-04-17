@@ -49,7 +49,7 @@ str : String → Expr [] [] `String`
 str s = `unpackCStringUtf8#` $ lit (flit (mkMachString s))
 
 
-`++` : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ (forAll ∗ (con `List` $ var hd ⇒ con `List` $ var hd ⇒ con `List` $ var hd))
+`++` : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ (forAll ∗ (con `List` $ tvar hd ⇒ con `List` $ tvar hd ⇒ con `List` $ tvar hd))
 `++` = fvar (fvar "Data.List" "++")
 
 
@@ -61,7 +61,7 @@ stringConcat = lam `String` (lam `String` (`++` [ con `Char` ] $ var (tl hd) $ v
 `Show` = con (con (fcon "GHC.Show" "Show") [])
 
 
-`show` : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ (forAll ∗ ((`Show` $ var hd) ⇒ var hd ⇒ `String`))
+`show` : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ (forAll ∗ ((`Show` $ tvar hd) ⇒ tvar hd ⇒ `String`))
 `show` = fvar (fvar "GHC.Show" "show")
 
 
