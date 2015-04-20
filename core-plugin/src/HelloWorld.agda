@@ -45,7 +45,7 @@ charDC = con charFDC `Char` hd (con `Char` ∷ []) -- TODO cheat
 -- char c = con charDC $ lit (flit (mkMachChar c))
 
 
-str : String → Expr [] [] `String`
+str : ∀ {Σ} {Γ : Cxt Σ} → String → Expr Σ Γ `String`
 str s = `unpackCStringUtf8#` $ lit (flit (mkMachString s))
 
 
