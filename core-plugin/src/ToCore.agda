@@ -141,11 +141,9 @@ instance
       tr (fvar (fvar q s)) = Var' <$> lookupForeignId (qname varNameSpace q s)
       tr {τ = τ} (fdict fdict) = toCore τ >>= λ ct → Var' <$> lookupInstance ct
       tr {τ = τ} (match sc bs _)
-        = toCore (exprType sc) >>= λ scCType →
-          toCore τ >>= λ resCType →
-          Case <$> toCore sc <*>
-                   pure (mkWildValBinder scCType) <*>
-                   pure resCType <*>
+        = Case <$> toCore sc <*>
+                   (mkWildValBinder <$> toCore (exprType sc)) <*>
+                   toCore τ <*>
                    mapM toCore bs
         where
           exprType : ∀ {Σ Γ τ} → Expr Σ Γ τ → Type Σ ∗
