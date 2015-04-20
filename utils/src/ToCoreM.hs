@@ -75,13 +75,17 @@ withFreshTyVar k cont = do
   let name = mkSysTvName uniq (fsLit "tyvar")
       tv   = mkTyVar name k
   modify (first (tv :))
-  cont tv
+  res <- cont tv
+  modify (first (drop 1))
+  return res
 
 withFreshVar :: Type -> (Id -> ToCoreM a) -> ToCoreM a
 withFreshVar t cont = do
   v <- liftCore $ mkSysLocalM (fsLit "var") t
   modify (second (v :))
-  cont v
+  res <- cont v
+  modify (second (drop 1))
+  return res
 
 withFreshVars :: [Type] -> ([Id] -> ToCoreM a) -> ToCoreM a
 withFreshVars ts cont = do
