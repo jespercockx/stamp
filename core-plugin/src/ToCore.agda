@@ -119,9 +119,9 @@ instance
   ToCoreBranch = record { toCore = tr }
     where
       tr : ∀ {Σ Γ τ₁ τ₂} → Branch Σ Γ τ₁ τ₂ → ToCoreM CoreAlt
-      tr (alt p e) = mapM toCore (patBinders p) >>= (λ binderTypes →
+      tr (alt p e) = mapM toCore (patBinders p) >>= λ binderTypes →
                      withFreshVars binderTypes λ binders →
-                     triple <$> toCore p <*> pure binders <*> toCore e)
+                     triple <$> toCore p <*> pure binders <*> toCore e
 
   ToCoreExpr = record { toCore = tr }
     where
