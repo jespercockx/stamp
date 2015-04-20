@@ -12,6 +12,7 @@ open import TypedCore
 open import ToCore
 open import MkPick using (pick1Of3)
 open import HelloWorld using (printHelloWorld)
+open import DeriveShow using (`showFoo`)
 
 postulate
   CommandLineOption : Set
@@ -71,7 +72,7 @@ hello : ModGuts → CoreM CoreExpr
 hello guts = runToCoreM guts (toCore printHelloWorld)
 
 program : ModGuts → CoreM CoreExpr
-program guts = runToCoreM guts (toCore `maybeToList`)
+program guts = runToCoreM guts (toCore `showFoo`)
 
 agdaMetaPass : List CommandLineOption → ModGuts → CoreProgram → CoreM CoreProgram
 agdaMetaPass options guts prog = replaceAgdaWith′ (program guts) prog

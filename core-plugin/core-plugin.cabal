@@ -29,6 +29,7 @@ library
                      , MAlonzo.Code.MyPrelude
                      , MAlonzo.Code.MkPick
                      , MAlonzo.Code.HelloWorld
+                     , MAlonzo.Code.DeriveShow
                      , MAlonzo.Code.Data.Traversable
                      , MAlonzo.Code.Data.Int
                      , MAlonzo.Code.Data.List

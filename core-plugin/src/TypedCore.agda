@@ -2,7 +2,7 @@ module TypedCore where
 
 {-# IMPORT TysWiredIn #-}
 
-open import Data.List using (All; _∷_; [])
+open import Data.List using (All; _∷_; []) public
 open import MyPrelude hiding (_$_; [_])
 open import CoreSyn
   hiding (module Type; module Expr; Expr; TyCon; DataCon)
