@@ -26,7 +26,7 @@ BarDC = fcon "Data" "Bar"
 `showFoo` = lam (con `Foo`)
                 (match (var hd)
                 (alt (con [] `Barry`) (str "Barry") ∷
-                 alt (con [] `Bar`) (stringConcat $ (str "Bar ") $ show (var hd)) ∷ [])
+                 alt (con [] `Bar`) (stringAppend $ (str "Bar ") $ show (var hd)) ∷ [])
                 refl)
 
 -- showFoo :: Foo -> String

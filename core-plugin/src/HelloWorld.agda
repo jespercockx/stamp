@@ -53,8 +53,8 @@ str s = `unpackCStringUtf8#` $ lit (flit (mkMachString s))
 `++` = fvar (fvar "Data.List" "++")
 
 
-stringConcat : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ (`String` ⇒ `String` ⇒ `String`)
-stringConcat = lam `String` (lam `String` (`++` [ con `Char` ] $ var (tl hd) $ var hd))
+stringAppend : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ (`String` ⇒ `String` ⇒ `String`)
+stringAppend = lam `String` (lam `String` (`++` [ con `Char` ] $ var (tl hd) $ var hd))
 
 
 `Show` : ∀ {Σ} → Type Σ (∗ ⇒ ∗)
@@ -90,5 +90,5 @@ instance
 printHelloWorld : Expr [] [] (`IO` $ `Unit`)
 printHelloWorld = `putStrLn` $ (`++` [ con `Char` ] $ str "hello" $ show (con `True`))
 -- printHelloWorld = `putStrLn` $ (`++` [ con `Char` ] $ show (char 'a') $ show (con `True`))
--- printHelloWorld = `putStrLn` $ (stringConcat $ str "hello " $ str "world")
+-- printHelloWorld = `putStrLn` $ (stringAppend $ str "hello " $ str "world")
 -- printHelloWorld = `putStrLn` $ (`++` [ con `Char` ] $ str "hello " $ str "world")
