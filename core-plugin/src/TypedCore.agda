@@ -161,6 +161,10 @@ dcType (con cdc tc x args) = mkForAll (tyConArgs tc) (mkFun args (tyConType tc))
 dataConForeignDataCon : ∀ {κ} {tc : TyCon κ} → DataCon tc → ForeignDataCon
 dataConForeignDataCon (con cdc _ _ _) = cdc
 
+dataConName : ∀ {κ} {tc : TyCon κ} → DataCon tc → String
+dataConName dc with dataConForeignDataCon dc
+... | fcon _ name = name
+
 data ForeignLit (Σ : TyCxt) (τ : Type Σ ∗) : Set where
   flit : Literal → ForeignLit Σ τ
 
@@ -193,7 +197,9 @@ data Expr (Σ : TyCxt) (Γ : Cxt Σ) : Type Σ ∗ → Set where
   fvar    : ∀ {τ} → ForeignVar Σ τ → Expr Σ Γ τ
   fdict   : ∀ {τ} → ForeignDict Σ τ → Expr Σ Γ τ -- TODO Constraint kind?
   match   : ∀ {τ₁ τ₂} → Expr Σ Γ τ₁ → (bs : List (Branch Σ Γ τ₁ τ₂)) →
-              Exhaustive bs → Expr Σ Γ τ₂
+              -- TODO temp dummy proof
+              1 ≡ 1 → Expr Σ Γ τ₂
+              -- Exhaustive bs → Expr Σ Γ τ₂
 
 Types : TyCxt → List Kind → Set
 Types Σ = All (Type Σ)
