@@ -43,10 +43,12 @@ open ConstructorsKnown {{...}} public
 
 instance
   FooConstructorsKnown : ConstructorsKnown `Foo`
-  FooConstructorsKnown = record { constructors = `Barry` ∷ `Bar` ∷ []; all = refl }
+  FooConstructorsKnown = record { constructors = `Barry` ∷ `Bar` ∷ []
+                                ; all = refl }
 
   BoolConstructorsKnown : ConstructorsKnown `Bool`
-  BoolConstructorsKnown = record { constructors = `False` ∷ `True` ∷ []; all = refl }
+  BoolConstructorsKnown = record { constructors = `False` ∷ `True` ∷ []
+                                 ; all = refl }
 
 
 intercalate : ∀ {Σ} {Γ : Cxt Σ} →
@@ -56,16 +58,24 @@ intercalate : ∀ {Σ} {Γ : Cxt Σ} →
 intercalate = fvar (fvar "Data.List" "intercalate")
 
 
-mkList : ∀ {Σ} {Γ : Cxt Σ} {τ : Type Σ ∗} → List (Expr Σ Γ τ) → Expr Σ Γ (con `List` $ τ)
+mkList : ∀ {Σ} {Γ : Cxt Σ} {τ : Type Σ ∗} →
+           List (Expr Σ Γ τ) →
+           Expr Σ Γ (con `List` $ τ)
 mkList = foldr (λ e es → con `Cons` [ _ ] $ e $ es ) (con `Nil` [ _ ])
 
 
 -- TODO ∀ κ + arguments
-deriveShow : (tc : TyCon ∗) {{ck : ConstructorsKnown tc}} → Expr [] [] (con tc ⇒ `String`)
-deriveShow tc {{ck}} = lam (con tc) (match (var hd) (map makeBranch constructors) refl)
+deriveShow : (tc : TyCon ∗) {{ck : ConstructorsKnown tc}} →
+             Expr [] [] (con tc ⇒ `String`)
+deriveShow tc {{ck}} = lam (con tc)
+                           (match (var hd)
+                                  (map makeBranch constructors)
+                                  refl)
   where
     makeBranch : DataCon tc → Branch [] (con tc ∷ []) (con tc) `String`
-    makeBranch dc = alt (con [] dc) (intercalate [ _ ] $ str " " $ mkList (str (dataConName dc) ∷ []))
+    makeBranch dc = alt (con [] dc)
+                        (intercalate [ _ ] $ str " " $
+                         mkList (str (dataConName dc) ∷ []))
 
 
 
