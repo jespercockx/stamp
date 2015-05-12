@@ -48,7 +48,7 @@ Cxt : TyCxt → Set
 Cxt Σ = Context (Type Σ ∗)
 
 --- Utilities for modelling Type Constructors
-
+infixr 5 _∷_
 data Saturates : Kind → Set where
   []  : Saturates ∗
   _∷_ : ∀ {κ} → (κ₁ : Kind) → Saturates κ → Saturates (κ₁ ⇒ κ)

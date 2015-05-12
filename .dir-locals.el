@@ -1,2 +1,1 @@
-((agda2-mode . ((agda2-program-name . "agda-docker")
-                (agda2-include-dirs . ("/home/agda/agda-prelude/src" ".")))))
+((agda2-mode . ((agda2-include-dirs . ("/home/thomasw/.cabal-sandboxes/Agda-Core/agda-prelude/src" ".")))))
