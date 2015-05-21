@@ -1,0 +1,321 @@
+From dfa0514536e60cfc1470d2f548a9c31b3dc64c45 Mon Sep 17 00:00:00 2001
+From: Dominique Devriese <dominique.devriese@cs.kuleuven.be>
+Date: Tue, 27 Jan 2015 10:36:23 +0100
+Subject: [PATCH] fix issue 223 by adding a new COMPILED_DECLARE_DATA pragma
+
+---
+ doc/release-notes/2-4-4.txt                        | 38 ++++++++++++++++++++++
+ src/full/Agda/Syntax/Abstract.hs                   |  1 +
+ src/full/Agda/Syntax/Concrete.hs                   |  3 ++
+ src/full/Agda/Syntax/Concrete/Pretty.hs            |  2 ++
+ src/full/Agda/Syntax/Parser/Lexer.x                |  1 +
+ src/full/Agda/Syntax/Parser/Parser.y               |  8 +++++
+ src/full/Agda/Syntax/Parser/Tokens.hs              |  2 +-
+ .../Agda/Syntax/Translation/AbstractToConcrete.hs  |  3 ++
+ .../Agda/Syntax/Translation/ConcreteToAbstract.hs  |  5 +++
+ src/full/Agda/TypeChecking/Rules/Decl.hs           | 22 +++++++++++--
+ test/compiler/Issue223.agda                        | 16 +++++++++
+ test/compiler/Issue223.hs                          | 11 +++++++
+ test/compiler/Makefile                             |  4 +++
+ 13 files changed, 112 insertions(+), 4 deletions(-)
+ create mode 100644 test/compiler/Issue223.agda
+ create mode 100644 test/compiler/Issue223.hs
+
+diff --git a/doc/release-notes/2-4-4.txt b/doc/release-notes/2-4-4.txt
+index 3971d1b..be62580 100644
+--- a/doc/release-notes/2-4-4.txt
++++ b/doc/release-notes/2-4-4.txt
+@@ -15,6 +15,44 @@ Installation and infrastructure
+ Pragmas and options
+ ===================
+ 
++* New Pragma COMPILED_DECLARE_DATA for binding recursively defined
++  Haskell data types to recursively defined Agda data types.
++
++  If you have a Haskell type like
++
++    {-# LANGUAGE GADTs #-}
++
++    module Issue223 where
++
++    data A where
++      BA :: B -> A
++
++    data B where
++      AB :: A -> B
++      BB :: B
++
++  You can now bind it to corresponding mutual Agda inductive data
++  types as follows:
++
++    {-# IMPORT Issue223 #-}
++
++    data A : Set
++    {-# COMPILED_DECLARE_DATA A Issue223.A #-}
++    data B : Set
++    {-# COMPILED_DECLARE_DATA B Issue223.B #-}
++
++    data A where
++      BA : B → A
++
++    {-# COMPILED_DATA A Issue223.A Issue223.BA #-}
++    data B where
++      AB : A → B
++      BB : B
++
++    {-# COMPILED_DATA B Issue223.B Issue223.AB Issue223.BB #-}
++
++  This fixes issue 223.
++
+ * New option --exact-split.
+ 
+   The --exact-split flag causes Agda to raise an error whenever a clause in a
+diff --git a/src/full/Agda/Syntax/Abstract.hs b/src/full/Agda/Syntax/Abstract.hs
+index 8be0a09..a857e59 100644
+--- a/src/full/Agda/Syntax/Abstract.hs
++++ b/src/full/Agda/Syntax/Abstract.hs
+@@ -184,6 +184,7 @@ data Pragma
+   | RewritePragma QName
+   | CompiledPragma QName String
+   | CompiledExportPragma QName String
++  | CompiledDeclareDataPragma QName String
+   | CompiledTypePragma QName String
+   | CompiledDataPragma QName String [String]
+   | CompiledEpicPragma QName String
+diff --git a/src/full/Agda/Syntax/Concrete.hs b/src/full/Agda/Syntax/Concrete.hs
+index ed199e8..1ce1705 100644
+--- a/src/full/Agda/Syntax/Concrete.hs
++++ b/src/full/Agda/Syntax/Concrete.hs
+@@ -416,6 +416,7 @@ data Pragma
+   | BuiltinPragma          !Range String Expr
+   | RewritePragma          !Range QName
+   | CompiledDataPragma     !Range QName String [String]
++  | CompiledDeclareDataPragma !Range QName String
+   | CompiledTypePragma     !Range QName String
+   | CompiledPragma         !Range QName String
+   | CompiledExportPragma   !Range QName String
+@@ -663,6 +664,7 @@ instance HasRange Pragma where
+   getRange (BuiltinPragma r _ _)        = r
+   getRange (RewritePragma r _)          = r
+   getRange (CompiledDataPragma r _ _ _) = r
++  getRange (CompiledDeclareDataPragma r _ _) = r
+   getRange (CompiledTypePragma r _ _)   = r
+   getRange (CompiledPragma r _ _)       = r
+   getRange (CompiledExportPragma r _ _) = r
+@@ -853,6 +855,7 @@ instance KillRange Pragma where
+   killRange (BuiltinPragma _ s e)         = killRange1 (BuiltinPragma noRange s) e
+   killRange (RewritePragma _ q)           = killRange1 (RewritePragma noRange) q
+   killRange (CompiledDataPragma _ q s ss) = killRange1 (\q -> CompiledDataPragma noRange q s ss) q
++  killRange (CompiledDeclareDataPragma _ q s) = killRange1 (\q -> CompiledDeclareDataPragma noRange q s) q
+   killRange (CompiledTypePragma _ q s)    = killRange1 (\q -> CompiledTypePragma noRange q s) q
+   killRange (CompiledPragma _ q s)        = killRange1 (\q -> CompiledPragma noRange q s) q
+   killRange (CompiledExportPragma _ q s)  = killRange1 (\q -> CompiledExportPragma noRange q s) q
+diff --git a/src/full/Agda/Syntax/Concrete/Pretty.hs b/src/full/Agda/Syntax/Concrete/Pretty.hs
+index c64a2a7..b513dda 100644
+--- a/src/full/Agda/Syntax/Concrete/Pretty.hs
++++ b/src/full/Agda/Syntax/Concrete/Pretty.hs
+@@ -436,6 +436,8 @@ instance Pretty Pragma where
+       hsep [ text "COMPILED_EXPORT", pretty x, text hs ]
+     pretty (CompiledTypePragma _ x hs) =
+       hsep [ text "COMPILED_TYPE", pretty x, text hs ]
++    pretty (CompiledDeclareDataPragma _ x hs) =
++      hsep [ text "COMPILED_DECLARE_DATA", pretty x, text hs ]
+     pretty (CompiledDataPragma _ x hs hcs) =
+       hsep $ [text "COMPILED_DATA", pretty x] ++ map text (hs : hcs)
+     pretty (CompiledEpicPragma _ x e) =
+diff --git a/src/full/Agda/Syntax/Parser/Lexer.x b/src/full/Agda/Syntax/Parser/Lexer.x
+index 669594d..99b4ec4 100644
+--- a/src/full/Agda/Syntax/Parser/Lexer.x
++++ b/src/full/Agda/Syntax/Parser/Lexer.x
+@@ -88,6 +88,7 @@ tokens :-
+ <pragma_>   "OPTIONS"              { keyword KwOPTIONS }
+ <pragma_>   "BUILTIN"              { keyword KwBUILTIN }
+ <pragma_>   "REWRITE"              { keyword KwREWRITE }
++<pragma_>   "COMPILED_DECLARE_DATA"     { keyword KwCOMPILED_DECLARE_DATA }
+ <pragma_>   "COMPILED_DATA"        { keyword KwCOMPILED_DATA }
+ <pragma_>   "COMPILED_TYPE"        { keyword KwCOMPILED_TYPE }
+ <pragma_>   "COMPILED"             { keyword KwCOMPILED }
+diff --git a/src/full/Agda/Syntax/Parser/Parser.y b/src/full/Agda/Syntax/Parser/Parser.y
+index c008387..0696ae1 100644
+--- a/src/full/Agda/Syntax/Parser/Parser.y
++++ b/src/full/Agda/Syntax/Parser/Parser.y
+@@ -120,6 +120,7 @@ import Agda.Utils.Tuple
+     'DISPLAY'       { TokKeyword KwDISPLAY $$ }
+     'COMPILED'      { TokKeyword KwCOMPILED $$ }
+     'COMPILED_EXPORT'      { TokKeyword KwCOMPILED_EXPORT $$ }
++    'COMPILED_DECLARE_DATA' { TokKeyword KwCOMPILED_DECLARE_DATA $$ }
+     'COMPILED_DATA' { TokKeyword KwCOMPILED_DATA $$ }
+     'COMPILED_TYPE' { TokKeyword KwCOMPILED_TYPE $$ }
+     'COMPILED_EPIC' { TokKeyword KwCOMPILED_EPIC $$ }
+@@ -232,6 +233,7 @@ Token
+     | 'IMPORT'      { TokKeyword KwIMPORT $1 }
+     | 'COMPILED'    { TokKeyword KwCOMPILED $1 }
+     | 'COMPILED_EXPORT'    { TokKeyword KwCOMPILED_EXPORT $1 }
++    | 'COMPILED_DECLARE_DATA'{ TokKeyword KwCOMPILED_DECLARE_DATA $1 }
+     | 'COMPILED_DATA'{ TokKeyword KwCOMPILED_DATA $1 }
+     | 'COMPILED_TYPE'{ TokKeyword KwCOMPILED_TYPE $1 }
+     | 'COMPILED_EPIC'{ TokKeyword KwCOMPILED_EPIC $1 }
+@@ -1307,6 +1309,7 @@ DeclarationPragma
+   | CompiledPragma           { $1 }
+   | CompiledExportPragma     { $1 }
+   | CompiledDataPragma       { $1 }
++  | CompiledDeclareDataPragma { $1 }
+   | CompiledTypePragma       { $1 }
+   | CompiledEpicPragma       { $1 }
+   | CompiledJSPragma         { $1 }
+@@ -1354,6 +1357,11 @@ CompiledExportPragma
+   : '{-#' 'COMPILED_EXPORT' PragmaQName PragmaString '#-}'
+     { CompiledExportPragma (getRange ($1,$2,$3,$5)) $3 $4 }
+ 
++CompiledDeclareDataPragma :: { Pragma }
++CompiledDeclareDataPragma
++  : '{-#' 'COMPILED_DECLARE_DATA' PragmaQName PragmaStrings '#-}'
++    { CompiledDeclareDataPragma (getRange ($1,$2,$3,$5)) $3 (unwords $4) }
++
+ CompiledTypePragma :: { Pragma }
+ CompiledTypePragma
+   : '{-#' 'COMPILED_TYPE' PragmaQName PragmaStrings '#-}'
+diff --git a/src/full/Agda/Syntax/Parser/Tokens.hs b/src/full/Agda/Syntax/Parser/Tokens.hs
+index 38618de..0e95be8 100644
+--- a/src/full/Agda/Syntax/Parser/Tokens.hs
++++ b/src/full/Agda/Syntax/Parser/Tokens.hs
+@@ -17,7 +17,7 @@ data Keyword
+         | KwInductive | KwCoInductive
+         | KwHiding | KwUsing | KwRenaming | KwTo | KwPublic
+         | KwOPTIONS | KwBUILTIN | KwLINE
+-        | KwCOMPILED_DATA | KwCOMPILED_TYPE | KwCOMPILED | KwCOMPILED_EXPORT
++        | KwCOMPILED_DATA | KwCOMPILED_DECLARE_DATA | KwCOMPILED_TYPE | KwCOMPILED | KwCOMPILED_EXPORT
+         | KwCOMPILED_EPIC | KwCOMPILED_JS | KwCOMPILED_UHC | KwCOMPILED_DATA_UHC
+         | KwIMPORT | KwIMPOSSIBLE | KwETA | KwSTATIC | KwNO_SMASHING
+         | KwNO_TERMINATION_CHECK | KwTERMINATING | KwNON_TERMINATING
+diff --git a/src/full/Agda/Syntax/Translation/AbstractToConcrete.hs b/src/full/Agda/Syntax/Translation/AbstractToConcrete.hs
+index 9f13681..92933df 100644
+--- a/src/full/Agda/Syntax/Translation/AbstractToConcrete.hs
++++ b/src/full/Agda/Syntax/Translation/AbstractToConcrete.hs
+@@ -818,6 +818,9 @@ instance ToConcrete RangeAndPragma C.Pragma where
+         A.CompiledTypePragma x hs -> do
+           x <- toConcrete x
+           return $ C.CompiledTypePragma r x hs
++        A.CompiledDeclareDataPragma x hs -> do
++          x <- toConcrete x
++          return $ C.CompiledDeclareDataPragma r x hs
+         A.CompiledDataPragma x hs hcs -> do
+           x <- toConcrete x
+           return $ C.CompiledDataPragma r x hs hcs
+diff --git a/src/full/Agda/Syntax/Translation/ConcreteToAbstract.hs b/src/full/Agda/Syntax/Translation/ConcreteToAbstract.hs
+index 6b03eac..648986d 100644
+--- a/src/full/Agda/Syntax/Translation/ConcreteToAbstract.hs
++++ b/src/full/Agda/Syntax/Translation/ConcreteToAbstract.hs
+@@ -1387,6 +1387,11 @@ instance ToAbstract C.Pragma [A.Pragma] where
+         A.Con x          -> genericError $ "REWRITE used on ambiguous name " ++ show x
+         A.Var x          -> genericError $ "REWRITE used on parameter " ++ show x ++ " instead of on a defined symbol"
+         _       -> __IMPOSSIBLE__
++    toAbstract (C.CompiledDeclareDataPragma _ x hs) = do
++      e <- toAbstract $ OldQName x Nothing
++      case e of
++        A.Def x -> return [ A.CompiledDeclareDataPragma x hs ]
++        _       -> fail $ "Bad compiled type: " ++ show x  -- TODO: error message
+     toAbstract (C.CompiledTypePragma _ x hs) = do
+       e <- toAbstract $ OldQName x Nothing
+       case e of
+diff --git a/src/full/Agda/TypeChecking/Rules/Decl.hs b/src/full/Agda/TypeChecking/Rules/Decl.hs
+index 49f9759..dea7c68 100644
+--- a/src/full/Agda/TypeChecking/Rules/Decl.hs
++++ b/src/full/Agda/TypeChecking/Rules/Decl.hs
+@@ -481,6 +481,13 @@ checkPrimitive i x e =
+       defaultDefn defaultArgInfo x t $
+         Primitive (Info.defAbstract i) s [] Nothing
+ 
++assertCurrentModule :: QName -> String -> TCM ()
++assertCurrentModule x err =
++  do def <- getConstInfo x
++     m <- currentModule
++     let m' = qnameModule $ defName def
++     unless (m == m') $ typeError $ GenericError err
++
+ -- | Check a pragma.
+ checkPragma :: Range -> A.Pragma -> TCM ()
+ checkPragma r p =
+@@ -488,6 +495,17 @@ checkPragma r p =
+         A.BuiltinPragma x e -> bindBuiltin x e
+         A.BuiltinNoDefPragma b x -> bindBuiltinNoDef b x
+         A.RewritePragma q   -> addRewriteRule q
++        A.CompiledDeclareDataPragma x hs -> do
++          def <- getConstInfo x
++          assertCurrentModule x $
++              "COMPILED_DECLARE_DATA directives must appear in the same module " ++
++              "as their corresponding datatype definition,"
++          case theDef def of
++            Datatype{} -> addHaskellType x hs
++            Axiom{}    -> -- possible when the data type has only been declared yet
++              addHaskellType x hs
++            _          -> typeError $ GenericError
++                          "COMPILED_DECLARE_DATA directive only works on data types"
+         A.CompiledTypePragma x hs -> do
+           def <- getConstInfo x
+           case theDef def of
+@@ -498,9 +516,7 @@ checkPragma r p =
+           def <- getConstInfo x
+           -- Check that the pragma appears in the same module
+           -- as the datatype.
+-          do m <- currentModule
+-             let m' = qnameModule $ defName def
+-             unless (m == m') $ typeError $ GenericError $
++          assertCurrentModule x $
+               "COMPILED_DATA directives must appear in the same module " ++
+               "as their corresponding datatype definition,"
+           let addCompiledData cs = do
+diff --git a/test/compiler/Issue223.agda b/test/compiler/Issue223.agda
+new file mode 100644
+index 0000000..69e4f62
+--- /dev/null
++++ b/test/compiler/Issue223.agda
+@@ -0,0 +1,16 @@
++{-# IMPORT Issue223 #-}
++
++data A : Set
++{-# COMPILED_DECLARE_DATA A Issue223.A #-}
++data B : Set
++{-# COMPILED_DECLARE_DATA B Issue223.B #-}
++
++data A where
++  BA : B → A
++{-# COMPILED_DATA A Issue223.A Issue223.BA #-}
++
++data B where
++  AB : A → B
++  BB : B
++{-# COMPILED_DATA B Issue223.B Issue223.AB Issue223.BB #-}
++
+diff --git a/test/compiler/Issue223.hs b/test/compiler/Issue223.hs
+new file mode 100644
+index 0000000..c8ad373
+--- /dev/null
++++ b/test/compiler/Issue223.hs
+@@ -0,0 +1,11 @@
++{-# LANGUAGE GADTs #-}
++
++module Issue223 where
++
++data A where
++  BA :: B -> A
++
++data B where
++  AB :: A -> B
++  BB :: B
++
+diff --git a/test/compiler/Makefile b/test/compiler/Makefile
+index 8825ed5..d89dfa3 100644
+--- a/test/compiler/Makefile
++++ b/test/compiler/Makefile
+@@ -27,3 +27,7 @@ Issue1252 :
+ ExportAndUse :
+ 	$(agda) --compile --no-main ExportAndUse.agda
+ 	rm -rf MAlonzo
++
++Issue223 :
++	$(agda) --compile --no-main Issue223.agda
++	rm -rf MAlonzo
+-- 
+2.4.0
+

@@ -5,3 +5,5 @@ dist
 MAlonzo
 ttac
 flycheck_*.hs
+cabal.sandbox.config
+.cabal-sandbox

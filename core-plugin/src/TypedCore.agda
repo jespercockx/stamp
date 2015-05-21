@@ -183,6 +183,8 @@ Exhaustive {τ₁ = τ₁} bs with typeTyCon τ₁
 ... | nothing = ⊥
 ... | just (_ , tc) = allConstructors tc bs
 
+infixl 4 _[_]
+
 data Expr (Σ : TyCxt) (Γ : Cxt Σ) : Type Σ ∗ → Set where
   var     : ∀ {τ} → τ ∈ Γ → Expr Σ Γ τ
   _$_     : ∀ {τ₁ τ₂} → Expr Σ Γ (τ₁ ⇒ τ₂) → Expr Σ Γ τ₁ → Expr Σ Γ τ₂

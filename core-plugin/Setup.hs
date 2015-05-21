@@ -5,7 +5,8 @@ import Distribution.Simple.LocalBuildInfo
 import Distribution.Simple.PreProcess
 import Distribution.Simple.Program
 import System.FilePath (takeDirectory, takeFileName, dropExtension)
-
+import System.Environment (lookupEnv)
+import Data.Maybe (fromMaybe)
 
 main :: IO ()
 main = defaultMainWithHooks
@@ -17,12 +18,17 @@ agdaCompiler _bi lbi =
   PreProcessor {
     platformIndependent = True,
     runPreProcessor = mkSimplePreProcessor $ \inFile outFile verbosity ->
-    rawSystemProgramConf verbosity agdaProgram (withPrograms lbi)
-    ["-c", "--no-main", "--compile-dir=" ++ takeDirectory outFile, "--ghc-flag=-package ghc",
-     "-i", "/home/agda/agda-prelude/src", "-i", "src", -- TODO make this configurable
-     inFile] >>
-    -- Dummy output file
-    writeFile outFile ("module " ++ dropExtension (takeFileName inFile) ++ " where\n")
+    do preludePath <- fromMaybe (error "AGDA_PRELUDE not in environment") -- TODO no error, use a cabal flag
+                      `fmap` lookupEnv "AGDA_PRELUDE"
+       sandbox <- fromMaybe (error "SANDBOX not in environment") -- TODO no error, use a cabal flag
+                  `fmap` lookupEnv "SANDBOX"
+       rawSystemProgramConf verbosity agdaProgram (withPrograms lbi)
+           ["-c", "--no-main", "--compile-dir=" ++ takeDirectory outFile,
+            "--ghc-flag=-package ghc", "--ghc-flag=-package-db=" ++ sandbox,
+            "-i", preludePath, "-i", "src",
+            inFile]
+       -- Dummy output file
+       writeFile outFile ("module " ++ dropExtension (takeFileName inFile) ++ " where\n")
     }
 
 
