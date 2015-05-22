@@ -13,7 +13,6 @@ import LoadIface (loadSysInterface)
 import Panic (throwGhcExceptionIO, GhcException(..))
 import TcEnv (tcLookupInstance)
 import TcRnMonad (initIfaceTcRn)
-import TyCon (TyCon)
 
 import Typechecker
 

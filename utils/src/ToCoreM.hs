@@ -4,7 +4,7 @@ module ToCoreM where
 
 import Find
 import GhcPlugins
-import Panic (panic, panicDoc)
+import Panic (panicDoc)
 
 import Data.Functor ((<$>))
 import Control.Applicative (Applicative)
@@ -71,7 +71,7 @@ lookupInstance ty
 
 withFreshTyVar :: Kind -> (TyVar -> ToCoreM a) -> ToCoreM a
 withFreshTyVar k cont = do
-  uniq <- liftCore $ getUniqueM
+  uniq <- liftCore getUniqueM
   let name = mkSysTvName uniq (fsLit "tyvar")
       tv   = mkTyVar name k
   modify (first (tv :))
