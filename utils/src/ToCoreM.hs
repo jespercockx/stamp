@@ -91,7 +91,9 @@ withFreshVars :: [Type] -> ([Id] -> ToCoreM a) -> ToCoreM a
 withFreshVars ts cont = do
   vs <- liftCore $ mapM (mkSysLocalM (fsLit "var")) ts
   modify (second (reverse vs ++)) -- TODO reverse?
-  cont vs
+  res <- cont vs
+  modify (second (drop (length vs)))
+  return res
 
 safeIndex :: Int -> [a] -> Maybe a
 safeIndex _ []     = Nothing
