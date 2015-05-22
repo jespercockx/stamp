@@ -97,6 +97,12 @@ data _∈_ {A : Set} (x : A) : List A → Set where
 ∈-++′ (left p) = (∈-suffix p)
 ∈-++′ {xs = xs} (right p) = ∈-prefix {ys = xs} p
 
+∈-++-prefix : ∀ {A : Set} {x : A} {xs ys : List A} → x ∈ xs → x ∈ (xs ++ ys)
+∈-++-prefix p = ∈-++′ (left p)
+
+∈-++-suffix : ∀ {A : Set} {x : A} {xs ys : List A} → x ∈ xs → x ∈ (ys ++ xs)
+∈-++-suffix {ys = ys} p = ∈-++′ {xs = ys} (right p)
+
 ∈-++-swap : ∀ {A : Set} {x : A} {xs ys : List A} →
              x ∈ (xs ++ ys) → x ∈ (ys ++ xs)
 ∈-++-swap {xs = []} {ys} p rewrite ++-[] {xs = ys} = p
@@ -110,7 +116,6 @@ data _∈_ {A : Set} (x : A) : List A → Set where
 ... | right (tl q) = tl (∈-++′ (left q))
 
 
---  ∈-++-swap {xs = xs} {ys = x₂ ∷ ys} (tl {y = x₁} p)
 
 infix 4 _⊆_
 
@@ -137,6 +142,9 @@ xs ⊈ ys = ¬ (xs ⊆ ys)
 ⊆-keep : ∀ {A : Set} {x : A} {xs ys : List A} → xs ⊆ ys → (x ∷ xs) ⊆ (x ∷ ys)
 ⊆-keep p hd = hd
 ⊆-keep p (tl q) = tl (p q)
+
+⊆-trans : ∀ {A : Set} {xs ys zs : List A} → xs ⊆ ys → ys ⊆ zs → xs ⊆ zs
+⊆-trans p q = λ {x} z → q (p z)
 
 ∈-over-⊆ : ∀ {A : Set} {x : A} {xs ys : List A} → xs ⊆ ys → x ∈ xs → x ∈ ys
 ∈-over-⊆ p q = p q

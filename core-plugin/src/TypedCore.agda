@@ -59,25 +59,43 @@ saturate (κ₁ ⇒ κ₂) = κ₁ ∷ saturate κ₂
 
 satTyCxt : ∀ {κ} → Saturates κ → TyCxt
 satTyCxt [] = []
-satTyCxt (κ ∷ sat) = κ ∷ satTyCxt sat
+satTyCxt (κ ∷ sat) = satTyCxt sat ++ (κ ∷ [])
+-- More efficient alternative:
+--
+--     satTyCxt : ∀ {κ} → Saturates κ → TyCxt
+--     satTyCxt = reverse ∘ convert
+--       where
+--         convert : ∀ {κ} → Saturates κ → TyCxt
+--         convert [] = []
+--         convert (κ ∷ sat) = κ ∷ convert sat
+--
+-- However, `satTyCxt-⊆` becomes much harder to prove.
 
 saturatedTyCxt : ∀ κ → TyCxt
 saturatedTyCxt = satTyCxt ∘ saturate
+
+
+satTyCxt-⊆ : ∀ {κ κₛ} → (sat : Saturates κₛ) → satTyCxt sat ⊆ satTyCxt (κ ∷ sat)
+satTyCxt-⊆ sat p = ∈-suffix p
 
 -- Saturates the type with kind κ using the types stored in the contexts
 --
 -- Examples:
 --
 --     postulate
---       t₁ : Type ((∗ ⇒ ∗) ∷ (∗ ⇒ ∗ ⇒ ∗) ∷ []) ((∗ ⇒ ∗) ⇒ (∗ ⇒ ∗ ⇒ ∗) ⇒ ∗)
---     saturateType t₁ ≡ t₁ $ var hd $ var (tl hd)
+--       t₁ : Type ((∗ ⇒ ∗ ⇒ ∗) ∷ (∗ ⇒ ∗) ∷ []) ((∗ ⇒ ∗) ⇒ (∗ ⇒ ∗ ⇒ ∗) ⇒ ∗)
+--       MaybeT : Type (∗ ∷ (∗ ⇒ ∗) ∷ []) ((∗ ⇒ ∗) ⇒ ∗ ⇒ ∗)
+--     saturateType t₁ ≡ t₁ $ var (tl hd) $ var hd
+--     saturateType MaybeT = MaybeT $ var (tl hd) $ var hd
 --
 saturateType : ∀ {κ} → Type (saturatedTyCxt κ) κ → Type (saturatedTyCxt κ) ∗
 saturateType {κ} = go (saturate κ) ⊆-refl
   where
     go : ∀ {Σ κ} → (sat : Saturates κ) → satTyCxt sat ⊆ Σ → Type Σ κ → Type Σ ∗
     go []         _ τ = τ
-    go (κ₁ ∷ sat) p τ = go sat (λ z → p (tl z)) (τ $ tvar (p hd))
+    go (κ₁ ∷ sat) p τ
+       = go sat (⊆-trans (satTyCxt-⊆ sat) p)
+                (τ $ tvar (∈-over-⊆ p (∈-++-suffix {ys = satTyCxt sat} hd)))
 
 data ForeignTyCon : Set where
   fcon : Module → Ident → ForeignTyCon
@@ -144,7 +162,7 @@ mkForAll (κ ∷ Σ) τ = mkForAll Σ (forAll κ τ)
 
 mkFun : ∀ {Σ : TyCxt} → Cxt Σ → Type Σ ∗ → Type Σ ∗
 mkFun []       τ = τ
-mkFun (τ₁ ∷ Γ) τ = mkFun Γ (τ₁ ⇒ τ)
+mkFun (τ₁ ∷ Γ) τ = τ₁ ⇒ mkFun Γ τ
 
 -- TODO IDEA: use records for a number of types to avoid all these
 -- extra selectors?
@@ -210,9 +228,16 @@ weakenTypes : ∀ {κ κs Σ} → Types Σ κs → Types (κ ∷ Σ) κs
 weakenTypes [] = []
 weakenTypes (τ ∷ τs) = weakenType τ (⊆-skip ⊆-refl) ∷ weakenTypes τs
 
+lastAll : ∀ {A : Set} {P : A → Set} {xs : List A} {x : A} →
+            All P (xs ++ x ∷ []) → All P xs × P x
+lastAll {xs = []} (p ∷ []) = [] , p
+lastAll {xs = x ∷ xs} (p ∷ all) with lastAll {xs = xs} all
+... | all′ , p′ = (p ∷ all′) , p′
+
 applyTyArgs : ∀ {Σ κ} → Type Σ κ → Types Σ (saturatedTyCxt κ) → Type Σ ∗
 applyTyArgs {κ = ∗} τ [] = τ
-applyTyArgs {κ = κ₁ ⇒ κ₂} τ (τ₁ ∷ τs) = applyTyArgs (τ $ τ₁) τs
+applyTyArgs {Σ} {κ = κ ⇒ κ₁} τ τs with lastAll τs
+... | τs′ , τ₁ = applyTyArgs (τ $ τ₁) τs′
 
 
 data Pat (Σ : TyCxt) : Type Σ ∗ → Set where
@@ -314,8 +339,7 @@ consDC = fcon "GHC.Types" ":"
 `Nil` = con nilDC `List` hd []
 
 `Cons` : DataCon `List`
-`Cons` = con consDC `List` (tl hd) ((con `List` $ tvar hd) ∷ tvar hd ∷ [])
-
+`Cons` = con consDC `List` (tl hd) (tvar hd ∷ (con `List` $ tvar hd) ∷ [])
 
 `maybeToListBool` : Expr [] [] ((con `Maybe` $ con `Bool`) ⇒ (con `List` $ con `Bool`))
 `maybeToListBool` = lam (con `Maybe` $ con `Bool`)
