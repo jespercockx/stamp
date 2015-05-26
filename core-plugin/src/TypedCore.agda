@@ -7,6 +7,7 @@ open import MyPrelude hiding (_$_; [_])
 open import CoreSyn
   hiding (module Type; module Expr; Expr; TyCon; DataCon)
   renaming (Kind to CKind; Type to CType)
+open import Tactic.Deriving.Eq
 
 data Kind : Set where
   ∗   : Kind
@@ -102,6 +103,14 @@ data ForeignTyCon : Set where
 
 data ForeignDataCon : Set where
   fcon : Module → Ident → ForeignDataCon
+
+instance
+  EqForeignDataCon : Eq ForeignDataCon
+  EqForeignDataCon = record { _==_ = eq }
+    where
+      eq : unquote (deriveEqType (quote ForeignDataCon))
+      unquoteDef eq = deriveEqDef (quote ForeignDataCon)
+
 
 data TyCon κ where
   con : ForeignTyCon → List ForeignDataCon → TyCon κ
@@ -218,7 +227,7 @@ data Expr (Σ : TyCxt) (Γ : Cxt Σ) : Type Σ ∗ → Set where
   fdict   : ∀ {τ} → ForeignDict Σ τ → Expr Σ Γ τ -- TODO Constraint kind?
   match   : ∀ {τ₁ τ₂} → Expr Σ Γ τ₁ → (bs : List (Branch Σ Γ τ₁ τ₂)) →
               -- TODO temp dummy proof
-              1 ≡ 1 → Expr Σ Γ τ₂
+              "x" ≡ "x" → Expr Σ Γ τ₂
               -- Exhaustive bs → Expr Σ Γ τ₂
 
 Types : TyCxt → List Kind → Set

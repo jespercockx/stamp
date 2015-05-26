@@ -1,6 +1,8 @@
 module Data.Int where
 
+open import Prelude.Number
 open import Prelude.Nat
+open import Prelude.Unit
 
 postulate
   Int   : Set
@@ -15,6 +17,10 @@ postulate
 {-# COMPILED _i+_ (+) #-}
 
 
-fromNat : Nat → Int
-fromNat zero = i0
-fromNat (suc n) = isuc (fromNat n)
+instance
+  NumberInt : Number Int
+  NumberInt = record { Constraint = λ _ → ⊤ ; fromNat = from }
+    where
+      from : Nat → {{_ : ⊤}} → Int
+      from zero = i0
+      from (suc n) = isuc (from n)
