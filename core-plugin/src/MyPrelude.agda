@@ -115,7 +115,17 @@ data _∈_ {A : Set} (x : A) : List A → Set where
 ... | right hd = hd
 ... | right (tl q) = tl (∈-++′ (left q))
 
+infixr 5 _+++_
 
+-- [1, 2] +++ [3, 4] = [2, 1, 3, 4]
+_+++_ : ∀ {A : Set} → List A → List A → List A
+[] +++ ys = ys
+(x ∷ xs) +++ ys = xs +++ x ∷ ys
+
+∈-+++-suffix : ∀ {A : Set} {x : A} {xs ys : List A} → x ∈ xs → x ∈ (ys +++ xs)
+∈-+++-suffix {ys = []} p = p
+∈-+++-suffix {xs = xs} {ys = y ∷ ys} p
+  = ∈-+++-suffix {xs = y ∷ xs} {ys = ys} (tl p)
 
 infix 4 _⊆_
 

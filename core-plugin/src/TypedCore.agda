@@ -157,13 +157,6 @@ substTop τ (lit l)       = lit l
 _constrOf_ : ∀ {κ} → ForeignDataCon → TyCon κ → Set
 cdc constrOf (con _ cdcs) = cdc ∈ cdcs
 
-infixr 5 _+++_
-
--- [1, 2] +++ [3, 4] = [2, 1, 3, 4]
-_+++_ : ∀ {A : Set} → List A → List A → List A
-[] +++ ys = ys
-(x ∷ xs) +++ ys = xs +++ x ∷ ys
-
 mkForAll : ∀ (Σ : TyCxt) → Type Σ ∗ → Type [] ∗
 mkForAll [] τ = τ
 mkForAll (κ ∷ Σ) τ = mkForAll Σ (forAll κ τ)
