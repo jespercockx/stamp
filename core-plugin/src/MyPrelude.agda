@@ -66,6 +66,11 @@ data _∈_ {A : Set} (x : A) : List A → Set where
   hd : ∀ {xs}            → x ∈ (x ∷ xs)
   tl : ∀ {y xs} → x ∈ xs → x ∈ (y ∷ xs)
 
+
+tl-inj : ∀ {A : Set} {x y : A} {xs : List A} {p q : x ∈ xs} →
+           tl {y = y} p ≡ tl q → p ≡ q
+tl-inj refl = refl
+
 ∈2i : ∀ {A : Set} {x : A} {xs : List A} → x ∈ xs → Nat
 ∈2i hd = 0
 ∈2i (tl p) = suc (∈2i p)
@@ -122,10 +127,46 @@ _+++_ : ∀ {A : Set} → List A → List A → List A
 [] +++ ys = ys
 (x ∷ xs) +++ ys = xs +++ x ∷ ys
 
+∈-+++ : ∀ {A : Set} {x : A} {xs ys : List A} →
+          x ∈ (xs +++ ys) → Either (x ∈ xs) (x ∈ ys)
+∈-+++ {xs = []} p = right p
+∈-+++ {x = x} {xs = y ∷ xs′} p with ∈-+++ {x = x} {xs = xs′} p
+... | left q = left (tl q)
+∈-+++ {A} {y} {.y ∷ xs′} p | right hd = left hd
+∈-+++ {A} {x} {y ∷ xs′} p | right (tl q) = right q
+
 ∈-+++-suffix : ∀ {A : Set} {x : A} {xs ys : List A} → x ∈ xs → x ∈ (ys +++ xs)
 ∈-+++-suffix {ys = []} p = p
 ∈-+++-suffix {xs = xs} {ys = y ∷ ys} p
   = ∈-+++-suffix {xs = y ∷ xs} {ys = ys} (tl p)
+
+∈-+++-prefix : ∀ {A : Set} {x : A} {xs ys : List A} → x ∈ xs → x ∈ (xs +++ ys)
+∈-+++-prefix {xs = []} ()
+∈-+++-prefix {xs = ._ ∷ xs′} hd = ∈-+++-suffix {ys = xs′} hd
+∈-+++-prefix {xs = y ∷ xs′} (tl p) = ∈-+++-prefix p
+
+∈-+++′ : ∀ {A : Set} {x : A} {xs ys : List A} →
+           Either (x ∈ xs) (x ∈ ys) → x ∈ (xs +++ ys)
+∈-+++′ (left p) = ∈-+++-prefix p
+∈-+++′ {xs = xs} (right p) = ∈-+++-suffix {ys = xs} p
+
+∈-+++-assoc₁ : ∀ {A : Set} {x : A} {xs ys zs : List A} →
+                x ∈ (xs +++ (ys +++ zs)) → x ∈ ((xs +++ ys) +++ zs)
+∈-+++-assoc₁ {xs = xs} {ys = ys} p with ∈-+++ {xs = xs} p
+... | left q = ∈-+++′ (left (∈-+++′ (left q)))
+... | right q with ∈-+++ {xs = ys} q
+... | left r = ∈-+++′ {xs = xs +++ ys} (left (∈-+++′ {xs = xs} (right r)))
+... | right r = ∈-+++′ {xs = xs +++ ys} (right r)
+
+∈-+++-assoc₂ : ∀ {A : Set} {x : A} {xs ys zs : List A} →
+                x ∈ ((xs +++ ys) +++ zs) → x ∈ (xs +++ (ys +++ zs))
+∈-+++-assoc₂ {xs = xs} {ys = ys} p with ∈-+++ {xs = xs +++ ys} p
+... | right q = ∈-+++′ {xs = xs} (right (∈-+++′ {xs = ys} (right q)))
+... | left q with ∈-+++ {xs = xs} q
+... | left r = ∈-+++′ (left r)
+... | right r = ∈-+++′ {xs = xs} (right (∈-+++′ (left r)))
+
+
 
 infix 4 _⊆_
 

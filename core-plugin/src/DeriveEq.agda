@@ -39,6 +39,15 @@ imb = con `identityT` [ con `Maybe` ] [ con `Bool` ] $
       con `Nothing` [ con `Bool` ]
 
 
+
+`&&` : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ (con `Bool` ⇒ con `Bool` ⇒ con `Bool`)
+`&&` = fvar (fvar "GHC.Base" "&&")
+
+
+and : ∀ {Σ} {Γ : Cxt Σ} → List (Expr Σ Γ (con `Bool`)) → Expr Σ Γ (con `Bool`)
+and [] = con `True`
+and (b ∷ bools) = foldr (λ b₁ b₂ → `&&` $ b₁ $ b₂) b bools
+
 `Eq` : ∀ {Σ} → Type Σ (∗ ⇒ ∗)
 `Eq` = con (con (fcon "GHC.Base" "Eq") [])
 
@@ -78,6 +87,17 @@ instance
                           refl)
                       ∷ []) refl))
 
+firstBinder : ∀ {A : Set} {x y : A} {xs ys zs : List A} →
+                x ∈ (xs +++ (x ∷ (ys ++ (xs +++ (y ∷ (ys ++ zs))))))
+firstBinder {xs = xs} = ∈-+++-suffix {ys = xs} hd
+
+secondBinder : ∀ {A : Set} {x y : A} {xs ys zs : List A} →
+                 x ∈ (xs +++ (y ∷ (ys ++ (xs +++ (x ∷ (ys ++ zs))))))
+secondBinder {_} {x} {_} {xs} {ys} {zs}
+  = ∈-+++-suffix {ys = xs}
+    (tl (∈-++-suffix {ys = ys} (∈-+++-suffix {ys = xs} hd)))
+
+
 deriveEq : (tc : TyCon ∗) {{ck : ConstructorsKnown tc}} →
            Expr [] [] (con tc ⇒ con tc ⇒ con `Bool`)
 deriveEq tc = lam (con tc) (lam (con tc)
@@ -85,5 +105,33 @@ deriveEq tc = lam (con tc) (lam (con tc)
                      (map makeBranch constructors)
                      refl))
   where
-    makeBranch : DataCon tc → Branch [] (con tc ∷ con tc ∷ []) (con tc) (con `Bool`)
-    makeBranch dc = alt (con [] dc) {!!}
+    makeBranch : (dc : DataCon tc) →
+                 Branch [] (con tc ∷ con tc ∷ []) (con tc) (con `Bool`)
+    makeBranch dc
+      = alt (con [] dc)
+            (match (var (∈-+++-suffix {ys = patBinders (con [] dc)} hd))
+                   (map (makeNestedBranch dc) constructors) refl)
+
+      where
+        makeNestedBranch : ∀ {tc} → (dc dc′ : DataCon tc) →
+                           Branch [] (patBinders (con [] dc) +++
+                                      con tc ∷ con tc ∷ [])
+                                     (con tc) (con `Bool`)
+        makeNestedBranch dc dc′ with dc == dc′
+        ... | no ¬eq = alt (con [] dc′) (con `False`)
+        ... | yes eq = alt (con [] dc)
+                           (compareArgs (patBinders (con [] dc)) {τs = []})
+          where
+            compareArgs : ∀ {tc : TyCon ∗} →
+                            (binders : Cxt [])
+                            {τs : List (Type [] ∗)} →
+                            Expr [] (binders +++ (τs ++ binders +++
+                                     (τs ++ con tc ∷ con tc ∷ [])))
+                                    (con `Bool`)
+            compareArgs [] = con `True`
+            compareArgs {tc} (τ ∷ binders) {τs}
+              = `&&` $ (`==` [ τ ] $
+                        {!!} $
+                        var (firstBinder {xs = binders} {ys = τs}) $
+                        var (secondBinder {xs = binders} {ys = τs}))
+                     $ compareArgs {tc} binders {τs = τ ∷ τs}

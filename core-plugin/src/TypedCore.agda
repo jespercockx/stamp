@@ -13,6 +13,11 @@ data Kind : Set where
   ∗   : Kind
   _⇒_ : Kind → Kind → Kind
 
+⇒-inj₁ : ∀ {κ₁₁ κ₁₂ κ₂₁ κ₂₂} → (κ₁₁ ⇒ κ₁₂) ≡ (κ₂₁ ⇒ κ₂₂) → κ₁₁ ≡ κ₂₁
+⇒-inj₁ refl = refl
+
+⇒-inj₂ : ∀ {κ₁₁ κ₁₂ κ₂₁ κ₂₂} → (κ₁₁ ⇒ κ₁₂) ≡ (κ₂₁ ⇒ κ₂₂) → κ₁₂ ≡ κ₂₂
+⇒-inj₂ refl = refl
 
 Context : Set → Set
 Context = List
@@ -39,6 +44,17 @@ data Type (Σ : TyCxt) : Kind → Set where
   forAll : ∀ κ → Type (κ ∷ Σ) ∗ → Type Σ ∗
   con    : ∀ {κ} → TyCon κ → Type Σ κ
   lit    : ∀ {κ} → TyLit → Type Σ κ -- TODO separate constructor?
+
+
+private
+  postulate
+    todo  : ∀ {a} {A : Set a} → String → A
+
+instance
+  EqTyLit : Eq TyLit
+  EqTyLit = todo "Eq TyLit"
+
+
 
 typeTyCon : ∀ {Σ κ} → Type Σ κ → Maybe (∃ λ κ′ → TyCon κ′)
 typeTyCon (con {κ} tc) = just (κ , tc)
@@ -104,16 +120,29 @@ data ForeignTyCon : Set where
 data ForeignDataCon : Set where
   fcon : Module → Ident → ForeignDataCon
 
+data TyCon κ where
+  con : ForeignTyCon → List ForeignDataCon → TyCon κ
+
 instance
+  EqForeignTyCon : Eq ForeignTyCon
+  EqForeignTyCon = record { _==_ = eq }
+    where
+      eq : unquote (deriveEqType (quote ForeignTyCon))
+      unquoteDef eq = deriveEqDef (quote ForeignTyCon)
+
   EqForeignDataCon : Eq ForeignDataCon
   EqForeignDataCon = record { _==_ = eq }
     where
       eq : unquote (deriveEqType (quote ForeignDataCon))
       unquoteDef eq = deriveEqDef (quote ForeignDataCon)
 
+  EqTyCon : ∀ {κ} → Eq (TyCon κ)
+  EqTyCon = record { _==_ = eq }
+    where
+      eq : unquote (deriveEqType (quote TyCon))
+      unquoteDef eq = deriveEqDef (quote TyCon)
 
-data TyCon κ where
-  con : ForeignTyCon → List ForeignDataCon → TyCon κ
+
 
 tyConArgs : ∀ {κ} → TyCon κ → TyCxt
 tyConArgs {κ} _ = saturatedTyCxt κ
@@ -174,6 +203,55 @@ data DataCon {κ} : TyCon κ → Set where
           cdc constrOf tc →
           (args : Cxt (tyConArgs tc)) →
           DataCon tc
+
+instance
+  -- {{Eq A}} gives problems when generating the code
+  Eq_∈_ : ∀ {A : Set} {x : A} {xs : List A} {{e : Eq A}} → Eq (x ∈ xs)
+  Eq_∈_ {{EqA}} = record { _==_ = eq {{EqA}} }
+    where
+      eq : ∀ {A : Set} {x : A} {xs : List A} {{e : Eq A}} →
+             (p₁ p₂ : x ∈ xs) → Dec (p₁ ≡ p₂)
+      eq hd hd = yes refl
+      eq hd (tl _) = no (λ ())
+      eq (tl _) hd = no (λ ())
+      eq (tl p₁) (tl p₂) = decEq₁ tl-inj (eq p₁ p₂)
+
+  -- TODO define in terms of Eq_∈_
+  Eq_constrOf_ : ∀ {fdc : ForeignDataCon} {κ} {tc : TyCon κ} → Eq (fdc constrOf tc)
+  Eq_constrOf_ = record { _==_ = eq }
+    where
+      eq : ∀ {fdc : ForeignDataCon} {κ} {tc : TyCon κ} →
+             (c₁ c₂ : fdc constrOf tc) → Dec (c₁ ≡ c₂)
+      eq {tc = con _ ._} hd hd = yes refl
+      eq {tc = con _ ._} hd (tl _) = no (λ ())
+      eq {tc = con _ ._} (tl _) hd = no (λ ())
+      eq {κ = κ} {tc = con ftc ._}  (tl c₁) (tl c₂)
+        = decEq₁ tl-inj (eq {κ = κ} {tc = con ftc _} c₁ c₂)
+
+  -- Avoid TERMINATING pragma by writing out the pattern matching
+  EqKind : Eq Kind
+  EqKind = record { _==_ = eq }
+    where
+      eq : (κ₁ κ₂ : Kind) → Dec (κ₁ ≡ κ₂)
+      eq ∗ ∗ = yes refl
+      eq ∗ (_ ⇒ _) = no (λ ())
+      eq (_ ⇒ _) ∗ = no (λ ())
+      eq (κ₁₁ ⇒ κ₁₂) (κ₂₁ ⇒ κ₂₂)
+        = decEq₂ ⇒-inj₁ ⇒-inj₂ (eq κ₁₁ κ₂₁) (eq κ₁₂ κ₂₂)
+
+  {-# TERMINATING #-} -- Too much work to write it out manually
+  EqType : ∀ {Σ κ} → Eq (Type Σ κ)
+  EqType = record { _==_ = eq }
+    where
+      eq : unquote (deriveEqType (quote Type))
+      unquoteDef eq = deriveEqDef (quote Type)
+
+  EqDataCon : ∀ {κ} {tc : TyCon κ} → Eq (DataCon tc)
+  EqDataCon = record { _==_ = eq }
+    where
+      eq : unquote (deriveEqType (quote DataCon))
+      unquoteDef eq = deriveEqDef (quote DataCon)
+
 
 dcType : ∀ {κ} {tc : TyCon κ} → DataCon tc → Type [] ∗
 dcType (con cdc tc x args) = mkForAll (tyConArgs tc) (mkFun args (tyConType tc))
