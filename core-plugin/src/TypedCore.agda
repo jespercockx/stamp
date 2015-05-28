@@ -2,7 +2,6 @@ module TypedCore where
 
 {-# IMPORT TysWiredIn #-}
 
-open import Data.List using (All; _∷_; []) public
 open import MyPrelude hiding (_$_; [_])
 open import CoreSyn
   hiding (module Type; module Expr; Expr; TyCon; DataCon)
@@ -263,6 +262,9 @@ dataConName : ∀ {κ} {tc : TyCon κ} → DataCon tc → String
 dataConName dc with dataConForeignDataCon dc
 ... | fcon _ name = name
 
+dataConArgs : ∀ {κ} {tc : TyCon κ} → DataCon tc → Cxt (tyConArgs tc)
+dataConArgs (con _ ._ _ args) = args
+
 data ForeignLit (Σ : TyCxt) (τ : Type Σ ∗) : Set where
   flit : Literal → ForeignLit Σ τ
 
@@ -343,7 +345,7 @@ transplant τs (lit l)      = lit l
 
 
 patBinders : ∀ {Σ τ} → Pat Σ τ → Cxt Σ
-patBinders (con tyArgs (con _ tc _ args)) = map (transplant tyArgs) args
+patBinders (con tyArgs dc) = map (transplant tyArgs) (dataConArgs dc)
 patBinders _ = []
 
 data Branch Σ Γ where

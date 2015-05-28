@@ -5,6 +5,7 @@ open import Control.Monad.Reader public
 open import Control.Monad.Trans public
 open import Control.Monad.State hiding (lift) public
 open import Data.Int public
+open import Data.List using (All; _∷_; []) public
 
 
 module Exists where
@@ -77,6 +78,11 @@ tl-inj refl = refl
 
 ∈2el : ∀ {A : Set} {x : A} {xs : List A} → x ∈ xs → A
 ∈2el {x = x} _ = x
+
+∈-All : ∀ {A : Set} {P : A → Set} {xs x} → All P xs → x ∈ xs → P x
+∈-All [] ()
+∈-All (p ∷ _) hd = p
+∈-All (_ ∷ ps) (tl i) = ∈-All ps i
 
 ∈-prefix : ∀ {A : Set} {x : A} {xs ys : List A} →
              x ∈ xs → x ∈ (ys ++ xs)

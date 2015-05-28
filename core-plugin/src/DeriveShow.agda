@@ -38,17 +38,20 @@ record ConstructorsKnown {κ} (tc : TyCon κ) : Set where
   field
     constructors : List (DataCon tc)
     all : tyConConstructors tc ≡ map dataConForeignDataCon constructors
+    allDCs : (dc : DataCon tc) → dc ∈ constructors
 
 open ConstructorsKnown {{...}} public
 
 instance
   FooConstructorsKnown : ConstructorsKnown `Foo`
   FooConstructorsKnown = record { constructors = `Barry` ∷ `Bar` ∷ []
-                                ; all = refl }
+                                ; all = refl
+                                ; allDCs = {!!} }
 
   BoolConstructorsKnown : ConstructorsKnown `Bool`
   BoolConstructorsKnown = record { constructors = `False` ∷ `True` ∷ []
-                                 ; all = refl }
+                                 ; all = refl
+                                 ; allDCs = {!!} }
 
 
 intercalate : ∀ {Σ} {Γ : Cxt Σ} →
