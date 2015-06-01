@@ -216,3 +216,8 @@ xs ⊈ ys = ¬ (xs ⊆ ys)
 ⊆-cons-middle {x = x₁} {xs = xs} _ | left  q = ∈-++′ {xs = x₁ ∷ xs} (left (tl q))
 ⊆-cons-middle _ | right hd = hd
 ⊆-cons-middle {x = x} {xs = xs} _ | right (tl q) = ∈-++′ {xs = x ∷ xs} (right q)
+
+allFin : (n : Nat) → List (Fin n)
+allFin zero = []
+allFin (suc n) = zero ∷ map suc (allFin n)
+

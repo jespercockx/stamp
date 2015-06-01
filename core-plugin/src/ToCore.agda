@@ -95,8 +95,7 @@ instance
       tr (forAll κ τ)  = toCore κ >>= λ ck →
                          withFreshTyVar ck λ tv →
                          ForAllTy tv <$> tr τ
-      tr (con c) with c
-      ... | con ftc _ = TyConApp <$> toCore ftc <*> pure []
+      tr (con (con adt))  = TyConApp <$> toCore (ADT.foreignTyCon adt) <*> pure []
       tr (lit l) = pure (LitTy l)
 
   ToCoreForeignDataCon : ToCore ForeignDataCon CDataCon
@@ -108,9 +107,9 @@ instance
   ToCorePat = record { toCore = tr }
     where
       tr : ∀ {Σ τ} → Pat Σ τ → ToCoreM AltCon
-      tr ̺                    = pure DEFAULT
-      tr (lit l)              = pure (LitAlt l)
-      tr (con _ (con dc _ _ _)) = DataAlt <$> toCore dc
+      tr ̺          = pure DEFAULT
+      tr (lit l)    = pure (LitAlt l)
+      tr (con _ dc) = DataAlt <$> toCore (dataConForeignDataCon dc)
 
   ToCoreExpr : ∀ {Σ Γ τ} → ToCore (Expr Σ Γ τ) CoreExpr
   {-# TERMINATING #-}
@@ -135,8 +134,7 @@ instance
       tr (Λ κ e)   = toCore κ >>= λ ck →
                      withFreshTyVar ck λ tv →
                      Lam tv <$> tr e
-      tr (con c) with c
-      ... | con dc _ _ _   = Var' ∘ dataConWrapId <$> toCore dc
+      tr (con dc)  = Var' ∘ dataConWrapId <$> toCore (dataConForeignDataCon dc)
       tr (lit (flit l))    = pure (Lit l)
       tr (fvar (fvar q s)) = Var' <$> lookupForeignId (qname varNameSpace q s)
       tr {τ = τ} (fdict fdict) = toCore τ >>= λ ct → Var' <$> lookupInstance ct

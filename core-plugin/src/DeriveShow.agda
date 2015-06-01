@@ -7,20 +7,18 @@ open import HelloWorld
 
 -- data Foo = Barry | Bar Bool
 
-BarryDC : ForeignDataCon
-BarryDC = fcon "Data" "Barry"
-
-BarDC : ForeignDataCon
-BarDC = fcon "Data" "Bar"
+FooADT : ADT ∗
+FooADT = makeADT (fcon "Data" "Foo")
+                 ((fcon "Data" "Barry" , []) ∷ (fcon "Data" "Bar" , con `Bool` ∷ []) ∷ [])
 
 `Foo` : TyCon ∗
-`Foo` = con (fcon "Data" "Foo") (BarryDC ∷ BarDC ∷ [])
+`Foo` = con FooADT
 
 `Barry` : DataCon `Foo`
-`Barry` = con BarryDC `Foo` hd []
+`Barry` = con FooADT zero
 
 `Bar` : DataCon `Foo`
-`Bar` = con BarDC `Foo` (tl hd) (con `Bool` ∷ [])
+`Bar` = con FooADT (suc zero)
 
 `showFoo` : Expr [] [] (con `Foo` ⇒ `String`)
 `showFoo` = lam (con `Foo`)
@@ -33,25 +31,6 @@ BarDC = fcon "Data" "Bar"
 -- showFoo = \foo -> case foo of
 --   Barry -> "Barry"
 --   Bar b -> "Bar" ++ show b
-
-record ConstructorsKnown {κ} (tc : TyCon κ) : Set where
-  field
-    constructors : List (DataCon tc)
-    all : tyConConstructors tc ≡ map dataConForeignDataCon constructors
-    allDCs : (dc : DataCon tc) → dc ∈ constructors
-
-open ConstructorsKnown {{...}} public
-
-instance
-  FooConstructorsKnown : ConstructorsKnown `Foo`
-  FooConstructorsKnown = record { constructors = `Barry` ∷ `Bar` ∷ []
-                                ; all = refl
-                                ; allDCs = {!!} }
-
-  BoolConstructorsKnown : ConstructorsKnown `Bool`
-  BoolConstructorsKnown = record { constructors = `False` ∷ `True` ∷ []
-                                 ; all = refl
-                                 ; allDCs = {!!} }
 
 
 intercalate : ∀ {Σ} {Γ : Cxt Σ} →
@@ -66,19 +45,18 @@ mkList : ∀ {Σ} {Γ : Cxt Σ} {τ : Type Σ ∗} →
            Expr Σ Γ (con `List` $ τ)
 mkList = foldr (λ e es → con `Cons` [ _ ] $ e $ es ) (con `Nil` [ _ ])
 
-
--- TODO ∀ κ + arguments
-deriveShow : (tc : TyCon ∗) {{ck : ConstructorsKnown tc}} →
-             Expr [] [] (con tc ⇒ `String`)
-deriveShow tc {{ck}} = lam (con tc)
-                           (match (var hd)
-                                  (map makeBranch constructors)
-                                  refl)
-  where
-    makeBranch : DataCon tc → Branch [] (con tc ∷ []) (con tc) `String`
-    makeBranch dc = alt (con [] dc)
-                        (intercalate [ _ ] $ str " " $
-                         mkList (str (dataConName dc) ∷ []))
+-- TODO update
+-- -- TODO ∀ κ + arguments
+-- deriveShow : (tc : TyCon ∗) → Expr [] [] (con tc ⇒ `String`)
+-- deriveShow tc {{ck}} = lam (con tc)
+--                            (match (var hd)
+--                                   (map makeBranch constructors)
+--                                   refl)
+--   where
+--     makeBranch : DataCon tc → Branch [] (con tc ∷ []) (con tc) `String`
+--     makeBranch dc = alt (con [] dc)
+--                         (intercalate [ _ ] $ str " " $
+--                          mkList (str (dataConName dc) ∷ []))
 
 
 

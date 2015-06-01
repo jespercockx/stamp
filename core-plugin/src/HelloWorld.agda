@@ -11,26 +11,38 @@ postulate
   `String#` : ∀ {Σ} → Type Σ ∗
 -- TODO add boxed kind?
 
-
-charFDC : ForeignDataCon
-charFDC = fcon "GHC.Base" "Char"
-
+{-# TERMINATING #-}
 `Char` : TyCon ∗
-`Char` = con (fcon "GHC.Base" "Char") (charFDC ∷ [])
 
-charDC : DataCon `Char` -- TODO cheat
-charDC = con charFDC `Char` hd (con `Char` ∷ []) -- TODO cheat
+
+CharADT : ADT ∗
+CharADT = makeADT (fcon "GHC.Base" "Char")  -- TODO cheat
+                  (((fcon "GHC.Base" "Char") , (con `Char`) ∷ []) ∷ [])
+
+`Char` = con CharADT
+
+charDC : DataCon `Char`
+charDC = con CharADT zero
 
 `String` : ∀ {Σ} → Type Σ ∗
 `String` = con `List` $ con `Char`
 
-`Unit` : ∀ {Σ} → Type Σ ∗
-`Unit` = con (con (fcon "GHC.Base" "()") [])
 
-`IO` : ∀ {Σ} → Type Σ (∗ ⇒ ∗)
-`IO` = con (con (fcon "System.IO" "IO") [])
+UnitADT : ADT ∗
+UnitADT = makeADT (fcon "GHC.Base" "()")
+                  ((fcon "GHC.Base" "()" , []) ∷ [])
 
-`putStrLn` : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ (`String` ⇒ `IO` $ `Unit`)
+`Unit` : TyCon ∗
+`Unit` = con UnitADT
+
+
+IOADT : ADT (∗ ⇒ ∗)
+IOADT = makeADT (fcon "System.IO" "IO") []
+
+`IO` : TyCon (∗ ⇒ ∗)
+`IO` = con IOADT
+
+`putStrLn` : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ (`String` ⇒ con `IO` $ con `Unit`)
 `putStrLn` = fvar (fvar "System.IO" "putStrLn")
 
 
@@ -56,19 +68,21 @@ str s = `unpackCStringUtf8#` $ lit (flit (mkMachString s))
 stringAppend : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ (`String` ⇒ `String` ⇒ `String`)
 stringAppend = lam `String` (lam `String` (`++` [ con `Char` ] $ var (tl hd) $ var hd))
 
+-- TODO ConstraintKind?
+ShowADT : ADT (∗ ⇒ ∗)
+ShowADT = makeADT (fcon "GHC.Show" "Show") []
 
-`Show` : ∀ {Σ} → Type Σ (∗ ⇒ ∗)
-`Show` = con (con (fcon "GHC.Show" "Show") [])
+`Show` : TyCon (∗ ⇒ ∗)
+`Show` = con ShowADT
 
-
-`show` : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ (forAll ∗ ((`Show` $ tvar hd) ⇒ tvar hd ⇒ `String`))
+`show` : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ (forAll ∗ ((con `Show` $ tvar hd) ⇒ tvar hd ⇒ `String`))
 `show` = fvar (fvar "GHC.Show" "show")
 
 
 
 record ShowC {Σ} (τ : Type Σ ∗) : Set where
   field
-    showDict : ∀ {Γ : Cxt Σ} → Expr Σ Γ (`Show` $ τ)
+    showDict : ∀ {Γ : Cxt Σ} → Expr Σ Γ (con `Show` $ τ)
 
 open ShowC {{...}} public
 
@@ -87,7 +101,7 @@ instance
   `ShowChar` : ∀ {Σ} → ShowC {Σ} (con `Char`)
   `ShowChar` = record { showDict = fdict fdict }
 
-printHelloWorld : Expr [] [] (`IO` $ `Unit`)
+printHelloWorld : Expr [] [] (con `IO` $ con `Unit`)
 printHelloWorld = `putStrLn` $ (`++` [ con `Char` ] $ str "hello" $ show (con `True`))
 -- printHelloWorld = `putStrLn` $ (`++` [ con `Char` ] $ show (char 'a') $ show (con `True`))
 -- printHelloWorld = `putStrLn` $ (stringAppend $ str "hello " $ str "world")

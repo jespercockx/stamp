@@ -119,38 +119,91 @@ data ForeignTyCon : Set where
 data ForeignDataCon : Set where
   fcon : Module → Ident → ForeignDataCon
 
+record ADT (κ : Kind) : Set where
+  inductive
+  constructor Adt
+
+  tyCxt : TyCxt
+  tyCxt = saturatedTyCxt κ
+
+  field
+    foreignTyCon : ForeignTyCon
+    nbConstructors : Nat -- TODO make it a non-field?
+    constructors : Vec (ForeignDataCon × Cxt tyCxt) nbConstructors
+
+  constructorIndex : Set
+  constructorIndex = Fin nbConstructors
+
+open ADT {{...}} public
+
+makeADT : ∀ {n} {κ} → ForeignTyCon →
+            Vec (ForeignDataCon × Cxt (saturatedTyCxt κ)) n →
+            ADT κ
+makeADT {n} ftc cs = record { foreignTyCon = ftc
+                            ; nbConstructors = n
+                            ; constructors = cs
+                            }
+
 data TyCon κ where
-  con : ForeignTyCon → List ForeignDataCon → TyCon κ
+  con : ∀ (adt : ADT κ) → TyCon κ
 
-instance
-  EqForeignTyCon : Eq ForeignTyCon
-  EqForeignTyCon = record { _==_ = eq }
-    where
-      eq : unquote (deriveEqType (quote ForeignTyCon))
-      unquoteDef eq = deriveEqDef (quote ForeignTyCon)
+tyConADT : ∀ {κ} → TyCon κ → ADT κ
+tyConADT (con adt) = adt
 
-  EqForeignDataCon : Eq ForeignDataCon
-  EqForeignDataCon = record { _==_ = eq }
-    where
-      eq : unquote (deriveEqType (quote ForeignDataCon))
-      unquoteDef eq = deriveEqDef (quote ForeignDataCon)
+tyConCxt : ∀ {κ} → TyCon κ → TyCxt
+tyConCxt = ADT.tyCxt ∘ tyConADT
 
-  EqTyCon : ∀ {κ} → Eq (TyCon κ)
-  EqTyCon = record { _==_ = eq }
-    where
-      eq : unquote (deriveEqType (quote TyCon))
-      unquoteDef eq = deriveEqDef (quote TyCon)
+-- TODO remove Foreign-?
+tyConConstructors : ∀ {κ} → TyCon κ → List ForeignDataCon
+tyConConstructors (con adt) = vecToList (fst <$> ADT.constructors adt)
 
-
-
-tyConArgs : ∀ {κ} → TyCon κ → TyCxt
-tyConArgs {κ} _ = saturatedTyCxt κ
-
-tyConType : ∀ {κ} → (tc : TyCon κ) → Type (tyConArgs tc) ∗
+tyConType : ∀ {κ} → (tc : TyCon κ) → Type (tyConCxt tc) ∗
 tyConType tc = saturateType (con tc)
 
-tyConConstructors : ∀ {κ} → TyCon κ → List ForeignDataCon
-tyConConstructors (con _ cs) = cs
+adtTyCon : ∀ {κ} → ADT κ → TyCon κ
+adtTyCon = con
+
+data DataCon {κ : Kind} : TyCon κ → Set where
+  con : ∀ (adt : ADT κ) → (i : ADT.constructorIndex adt) → DataCon (con adt)
+
+
+dataConADT : ∀ {κ} {tc : TyCon κ} → DataCon tc → ADT κ
+dataConADT (con adt _) = adt
+
+dataConForeignDataCon : ∀ {κ} {tc : TyCon κ} → DataCon tc → ForeignDataCon
+dataConForeignDataCon (con adt i) = fst (indexVec (ADT.constructors adt) i)
+
+dataConArgs : ∀ {κ} {tc : TyCon κ} → DataCon tc → Cxt (tyConCxt tc)
+dataConArgs (con adt i) = snd (indexVec (ADT.constructors adt) i)
+
+adtDataCons : ∀ {κ} → (adt : ADT κ) → List (DataCon (con adt))
+adtDataCons adt = map (con adt) (allFin (ADT.nbConstructors adt))
+
+
+mkForAll : ∀ (Σ : TyCxt) → Type Σ ∗ → Type [] ∗
+mkForAll [] τ = τ
+mkForAll (κ ∷ Σ) τ = mkForAll Σ (forAll κ τ)
+
+mkFun : ∀ {Σ : TyCxt} → Cxt Σ → Type Σ ∗ → Type Σ ∗
+mkFun []       τ = τ
+mkFun (τ₁ ∷ Γ) τ = τ₁ ⇒ mkFun Γ τ
+
+dcType : ∀ {κ} {tc : TyCon κ} → DataCon tc → Type [] ∗
+dcType {κ} dc = mkForAll (ADT.tyCxt adt)
+                         (mkFun (dataConArgs dc)
+                                (tyConType (con adt)))
+  where
+    adt : ADT κ
+    adt = dataConADT dc
+
+
+
+-- Problems to solve:
+-- * Exhaustiveness: for `TyCon`, list all `DataCon`s
+-- * Type check: given a `TyCon` and a `DataCon`, check that the type of the
+-- latter includes the former
+-- * Patterns: allow patterns to refer to `DataCon`s
+
 
 --- Weakening and substitution
 
@@ -180,28 +233,21 @@ substTop τ (forAll κ t)  = forAll κ (substTop (weakenType τ (⊆-skip ⊆-re
 substTop τ (con c)       = con c
 substTop τ (lit l)       = lit l
 
---- Expr and related data types
-
-_constrOf_ : ∀ {κ} → ForeignDataCon → TyCon κ → Set
-cdc constrOf (con _ cdcs) = cdc ∈ cdcs
-
-mkForAll : ∀ (Σ : TyCxt) → Type Σ ∗ → Type [] ∗
-mkForAll [] τ = τ
-mkForAll (κ ∷ Σ) τ = mkForAll Σ (forAll κ τ)
+--- Eq instances
 
 
-mkFun : ∀ {Σ : TyCxt} → Cxt Σ → Type Σ ∗ → Type Σ ∗
-mkFun []       τ = τ
-mkFun (τ₁ ∷ Γ) τ = τ₁ ⇒ mkFun Γ τ
+Adt-inj₁ : ∀ {κ} {ftc₁ ftc₂} {n₁ n₂} {cs₁ cs₂} →
+             Adt {κ} ftc₁ n₁ cs₁ ≡ Adt {κ} ftc₂ n₂ cs₂ → ftc₁ ≡ ftc₂
+Adt-inj₁ refl = refl
 
--- TODO IDEA: use records for a number of types to avoid all these
--- extra selectors?
-data DataCon {κ} : TyCon κ → Set where
-  con : ∀ (cdc : ForeignDataCon) →
-          (tc : TyCon κ) →
-          cdc constrOf tc →
-          (args : Cxt (tyConArgs tc)) →
-          DataCon tc
+Adt-inj₂ : ∀ {κ} {ftc₁ ftc₂} {n₁ n₂} {cs₁ cs₂} →
+             Adt {κ} ftc₁ n₁ cs₁ ≡ Adt {κ} ftc₂ n₂ cs₂ → n₁ ≡ n₂
+Adt-inj₂ refl = refl
+
+Adt-inj₃ : ∀ {κ} {ftc₁ ftc₂} {n} {cs₁ cs₂} →
+             Adt {κ} ftc₁ n cs₁ ≡ Adt {κ} ftc₂ n cs₂ → cs₁ ≡ cs₂
+Adt-inj₃ refl = refl
+
 
 instance
   -- {{Eq A}} gives problems when generating the code
@@ -215,18 +261,6 @@ instance
       eq (tl _) hd = no (λ ())
       eq (tl p₁) (tl p₂) = decEq₁ tl-inj (eq p₁ p₂)
 
-  -- TODO define in terms of Eq_∈_
-  Eq_constrOf_ : ∀ {fdc : ForeignDataCon} {κ} {tc : TyCon κ} → Eq (fdc constrOf tc)
-  Eq_constrOf_ = record { _==_ = eq }
-    where
-      eq : ∀ {fdc : ForeignDataCon} {κ} {tc : TyCon κ} →
-             (c₁ c₂ : fdc constrOf tc) → Dec (c₁ ≡ c₂)
-      eq {tc = con _ ._} hd hd = yes refl
-      eq {tc = con _ ._} hd (tl _) = no (λ ())
-      eq {tc = con _ ._} (tl _) hd = no (λ ())
-      eq {κ = κ} {tc = con ftc ._}  (tl c₁) (tl c₂)
-        = decEq₁ tl-inj (eq {κ = κ} {tc = con ftc _} c₁ c₂)
-
   -- Avoid TERMINATING pragma by writing out the pattern matching
   EqKind : Eq Kind
   EqKind = record { _==_ = eq }
@@ -238,12 +272,40 @@ instance
       eq (κ₁₁ ⇒ κ₁₂) (κ₂₁ ⇒ κ₂₂)
         = decEq₂ ⇒-inj₁ ⇒-inj₂ (eq κ₁₁ κ₂₁) (eq κ₁₂ κ₂₂)
 
+  EqForeignTyCon : Eq ForeignTyCon
+  EqForeignTyCon = record { _==_ = eq }
+    where
+      eq : unquote (deriveEqType (quote ForeignTyCon))
+      unquoteDef eq = deriveEqDef (quote ForeignTyCon)
+
+  EqForeignDataCon : Eq ForeignDataCon
+  EqForeignDataCon = record { _==_ = eq }
+    where
+      eq : unquote (deriveEqType (quote ForeignDataCon))
+      unquoteDef eq = deriveEqDef (quote ForeignDataCon)
+
+  EqTyCon : ∀ {κ} → Eq (TyCon κ)
+
   {-# TERMINATING #-} -- Too much work to write it out manually
   EqType : ∀ {Σ κ} → Eq (Type Σ κ)
   EqType = record { _==_ = eq }
     where
       eq : unquote (deriveEqType (quote Type))
       unquoteDef eq = deriveEqDef (quote Type)
+
+  EqADT : ∀ {κ} → Eq (ADT κ)
+  EqADT = record { _==_ = eq }
+    where
+      eq : unquote (deriveEqType (quote ADT))
+      eq (Adt ftc₁ n₁ cs₁) (Adt ftc₂ n₂ cs₂) with n₁ == n₂
+      ... | no ¬p = no λ eq → ¬p (Adt-inj₂ eq)
+      ... | yes p rewrite p = decEq₂ Adt-inj₁ Adt-inj₃
+                                     (ftc₁ == ftc₂) (cs₁ == cs₂)
+
+  EqTyCon = record { _==_ = eq }
+    where
+      eq : unquote (deriveEqType (quote TyCon))
+      unquoteDef eq = deriveEqDef (quote TyCon)
 
   EqDataCon : ∀ {κ} {tc : TyCon κ} → Eq (DataCon tc)
   EqDataCon = record { _==_ = eq }
@@ -252,18 +314,6 @@ instance
       unquoteDef eq = deriveEqDef (quote DataCon)
 
 
-dcType : ∀ {κ} {tc : TyCon κ} → DataCon tc → Type [] ∗
-dcType (con cdc tc x args) = mkForAll (tyConArgs tc) (mkFun args (tyConType tc))
-
-dataConForeignDataCon : ∀ {κ} {tc : TyCon κ} → DataCon tc → ForeignDataCon
-dataConForeignDataCon (con cdc _ _ _) = cdc
-
-dataConName : ∀ {κ} {tc : TyCon κ} → DataCon tc → String
-dataConName dc with dataConForeignDataCon dc
-... | fcon _ name = name
-
-dataConArgs : ∀ {κ} {tc : TyCon κ} → DataCon tc → Cxt (tyConArgs tc)
-dataConArgs (con _ ._ _ args) = args
 
 data ForeignLit (Σ : TyCxt) (τ : Type Σ ∗) : Set where
   flit : Literal → ForeignLit Σ τ
@@ -278,6 +328,8 @@ data Branch (Σ : TyCxt) (Γ : Cxt Σ) : Type Σ ∗ → Type Σ ∗ → Set
 
 allConstructors : ∀ {κ Σ Γ τ₁ τ₂} → TyCon κ → List (Branch Σ Γ τ₁ τ₂) → Set
 
+-- Using the constructor indices is probably cleaner, but this provides better
+-- (?) error messages.
 Exhaustive : ∀ {Σ} {Γ : Cxt Σ} {τ₁ τ₂ : Type Σ ∗} → List (Branch Σ Γ τ₁ τ₂) → Set
 Exhaustive {τ₁ = τ₁} bs with typeTyCon τ₁
 ... | nothing = ⊥
@@ -316,6 +368,7 @@ lastAll {xs = []} (p ∷ []) = [] , p
 lastAll {xs = x ∷ xs} (p ∷ all) with lastAll {xs = xs} all
 ... | all′ , p′ = (p ∷ all′) , p′
 
+
 applyTyArgs : ∀ {Σ κ} → Type Σ κ → Types Σ (saturatedTyCxt κ) → Type Σ ∗
 applyTyArgs {κ = ∗} τ [] = τ
 applyTyArgs {Σ} {κ = κ ⇒ κ₁} τ τs with lastAll τs
@@ -326,11 +379,11 @@ data Pat (Σ : TyCxt) : Type Σ ∗ → Set where
   ̺   : ∀ {τ} → Pat Σ τ
   -- TODO unsafe: Literal can have another type
   lit : ∀ {τ} → Literal → Pat Σ τ
-  con : ∀ {κ} {tc : TyCon κ} → (tyArgs : Types Σ (tyConArgs tc)) →
+  con : ∀ {κ} {tc : TyCon κ} → (tyArgs : Types Σ (tyConCxt tc)) →
           (dc : DataCon tc) → Pat Σ (applyTyArgs (con tc) tyArgs)
 
 -- TODO name and intuition behind it
-transplantVar : ∀ {κ Σ Σ′} → κ ∈ Σ → Types Σ′ Σ → Type Σ′ κ
+transplantVar : ∀ {κ κs Σ} → κ ∈ κs → Types Σ κs → Type Σ κ
 transplantVar hd (τ ∷ _) = τ
 transplantVar (tl n) (p ∷ τs) = transplantVar n τs
 
@@ -362,39 +415,40 @@ allConstructors tc branches
 
 -- TODO other typing rules on 13 of core-spec.pdf
 
+
 --- Example ADT: Bool
 
-trueDC : ForeignDataCon
-trueDC = fcon "GHC.Base" "True"
-
-falseDC : ForeignDataCon
-falseDC = fcon "GHC.Base" "False"
+BoolADT : ADT ∗
+BoolADT = makeADT (fcon "GHC.Base" "Bool")
+                  (((fcon "GHC.Base" "False") , []) ∷
+                   ((fcon "GHC.Base" "True") , []) ∷ [])
 
 `Bool` : TyCon ∗
-`Bool` = con (fcon "GHC.Base" "Bool") (falseDC ∷ trueDC ∷ [])
-
-`True` : DataCon `Bool`
-`True` = con trueDC `Bool` (tl hd) []
+`Bool` = con BoolADT
 
 `False` : DataCon `Bool`
-`False` = con falseDC `Bool` hd []
+`False` = con BoolADT zero
+
+`True` : DataCon `Bool`
+`True` = con BoolADT (suc zero)
 
 --- Example ADT: Maybe
 
-nothingDC : ForeignDataCon
-nothingDC = fcon "Data.Maybe" "Nothing"
-
-justDC : ForeignDataCon
-justDC = fcon "Data.Maybe" "Just"
+MaybeADT : ADT (∗ ⇒ ∗)
+MaybeADT = makeADT (fcon "Data.Maybe" "Maybe")
+                   (((fcon "Data.Maybe" "Nothing") , []) ∷
+                    ((fcon "Data.Maybe" "Just") , tvar hd ∷ []) ∷ [])
 
 `Maybe` : TyCon (∗ ⇒ ∗)
-`Maybe` = con (fcon "Data.Maybe" "Maybe") (nothingDC ∷ justDC ∷ [])
+`Maybe` = con MaybeADT
+
 
 `Nothing` : DataCon `Maybe`
-`Nothing` = con nothingDC `Maybe` hd []
+`Nothing` = con MaybeADT zero
 
 `Just` : DataCon `Maybe`
-`Just` = con justDC `Maybe` (tl hd) (tvar hd ∷ [])
+`Just` = con MaybeADT (suc zero)
+
 
 --- Try pattern matching
 `not` : Expr [] [] (con `Bool` ⇒ con `Bool`)
@@ -408,20 +462,22 @@ justDC = fcon "Data.Maybe" "Just"
 
 --- Example ADT: List
 
-nilDC : ForeignDataCon
-nilDC = fcon "GHC.Types" "[]"
-
-consDC : ForeignDataCon
-consDC = fcon "GHC.Types" ":"
-
+{-# TERMINATING #-} -- TODO get rid of this?
 `List` : TyCon (∗ ⇒ ∗)
-`List` = con (fcon "GHC.Types" "[]") (nilDC ∷ consDC ∷ [])
+
+ListADT : ADT (∗ ⇒ ∗)
+ListADT = makeADT (fcon "GHC.Types" "[]")
+                  (((fcon "GHC.Types" "[]") , []) ∷
+                   ((fcon "GHC.Types" ":"), tvar hd ∷ (con `List` $ tvar hd) ∷ []) ∷ [])
+
+`List` = con ListADT
 
 `Nil` : DataCon `List`
-`Nil` = con nilDC `List` hd []
+`Nil` = con ListADT zero
 
 `Cons` : DataCon `List`
-`Cons` = con consDC `List` (tl hd) (tvar hd ∷ (con `List` $ tvar hd) ∷ [])
+`Cons` = con ListADT (suc zero)
+
 
 `maybeToListBool` : Expr [] [] ((con `Maybe` $ con `Bool`) ⇒ (con `List` $ con `Bool`))
 `maybeToListBool` = lam (con `Maybe` $ con `Bool`)

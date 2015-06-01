@@ -40,12 +40,15 @@ library
                      , MAlonzo.Code.Prelude.Applicative
                      , MAlonzo.Code.Prelude.Ord
                      , MAlonzo.Code.Prelude.Nat
+                     , MAlonzo.Code.Prelude.Nat.Core
+                     , MAlonzo.Code.Prelude.Number
                      , MAlonzo.Code.Prelude.Empty
                      , MAlonzo.Code.Prelude.Decidable
                      , MAlonzo.Code.Prelude.Equality
                      , MAlonzo.Code.Prelude.Equality.Unsafe
                      , MAlonzo.Code.Prelude.Monad
                      , MAlonzo.Code.Prelude.Product
+                     , MAlonzo.Code.Prelude.Semiring
                      , MAlonzo.Code.Prelude.Vec
                      , MAlonzo.Code.Prelude.Fin
                      , MAlonzo.Code.Prelude.String
