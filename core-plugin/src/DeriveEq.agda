@@ -6,40 +6,6 @@ open import HelloWorld
 open import DeriveShow
 
 
-
-tuple2DC : ForeignDataCon
-tuple2DC = fcon "GHC.Types" "(,)"
-
-`Tuple2` : TyCon (∗ ⇒ ∗ ⇒ ∗)
-`Tuple2` = con (fcon "GHC.Base" "(,)") (tuple2DC ∷ [])
-
-`tuple2` : DataCon `Tuple2`
-`tuple2` = con tuple2DC `Tuple2` hd (tvar (tl hd) ∷ tvar hd ∷ [])
-
--- This can't work because of substTop
--- mkTuple2 : ∀ {τ₁ τ₂ : Type [] ∗} → Expr [] [] τ₁ → Expr [] [] τ₂ →
---              Expr [] [] (con `Tuple2` $ τ₁ $ τ₂)
--- mkTuple2 {τ₁ = τ₁} {τ₂ = τ₂} e₁ e₂ = con `tuple2` [ τ₁ ] [ τ₂ ] $ e₁ $ e₂
-
-
-identityTDC : ForeignDataCon
-identityTDC = tuple2DC
-
-`IdentityT` : TyCon ((∗ ⇒ ∗) ⇒ ∗ ⇒ ∗)
-`IdentityT` = con (fcon "GHC.Base" "(,)") (identityTDC ∷ [])
-
-IdentityT : Type [] ((∗ ⇒ ∗) ⇒ ∗ ⇒ ∗)
-IdentityT = con `IdentityT`
-
-`identityT` : DataCon `IdentityT`
-`identityT` = con identityTDC `IdentityT` hd ((tvar (tl hd) $ tvar hd) ∷ [])
-
-imb : Expr [] [] (con `IdentityT` $ con `Maybe` $ con `Bool`)
-imb = con `identityT` [ con `Maybe` ] [ con `Bool` ] $
-      con `Nothing` [ con `Bool` ]
-
-
-
 `&&` : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ (con `Bool` ⇒ con `Bool` ⇒ con `Bool`)
 `&&` = fvar (fvar "GHC.Base" "&&")
 
@@ -48,16 +14,16 @@ and : ∀ {Σ} {Γ : Cxt Σ} → List (Expr Σ Γ (con `Bool`)) → Expr Σ Γ (
 and [] = con `True`
 and (b ∷ bools) = foldr (λ b₁ b₂ → `&&` $ b₁ $ b₂) b bools
 
-`Eq` : ∀ {Σ} → Type Σ (∗ ⇒ ∗)
-`Eq` = con (con (fcon "GHC.Base" "Eq") [])
+`Eq` : TyCon (∗ ⇒ ∗)
+`Eq` = con (makeADT (fcon "GHC.Base" "Eq") [])
 
-`==` : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ (forAll ∗ ((`Eq` $ tvar hd) ⇒ tvar hd ⇒ tvar hd ⇒ con `Bool`))
+`==` : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ (forAll ∗ ((con `Eq` $ tvar hd) ⇒ tvar hd ⇒ tvar hd ⇒ con `Bool`))
 `==` = fvar (fvar "GHC.Base" "==")
 
 
 record EqC {Σ} (τ : Type Σ ∗) : Set where
   field
-    eqDict : ∀ {Γ : Cxt Σ} → Expr Σ Γ (`Eq` $ τ)
+    eqDict : ∀ {Γ : Cxt Σ} → Expr Σ Γ (con `Eq` $ τ)
 
 open EqC {{...}} public
 
@@ -73,34 +39,13 @@ instance
   `EqChar` = record { eqDict = fdict fdict }
 
 
-`eqFoo` : Expr [] [] (con `Foo` ⇒ con `Foo` ⇒  con `Bool`)
-`eqFoo` = lam (con `Foo`) (lam (con `Foo`)
-              (match (var (tl hd))
-                     (alt (con [] `Barry`)
-                          (match (var hd)
-                          (alt (con [] `Barry`) (con `True`) ∷
-                            alt (con [] `Bar`) (con `False`) ∷ []) refl) ∷
-                      alt (con [] `Bar`)
-                          (match (var (tl hd))
-                          (alt (con [] `Barry`) (con `False`) ∷
-                          alt (con [] `Bar`) (`eq` (var (tl hd)) (var hd)) ∷ [])
-                          refl)
-                      ∷ []) refl))
 
+typesInConstructors : (adt : ADT ∗) → Cxt []
+typesInConstructors adt
+  = map (transplant []) (concatMap dataConArgs (adtDataCons adt))
 
-
-typesInConstructors : (tc : TyCon ∗) {{ck : ConstructorsKnown tc}} →
-                      List (Type [] ∗)
-typesInConstructors tc {{ck}} = concatMap (dataConArgs {tc = tc}) constructors
-
-
-findDict : ∀ {tc : TyCon ∗} {Γ : Cxt []} {τ : Type [] ∗}
-             {{ck : ConstructorsKnown tc}}
-             {{eqs : All EqC (typesInConstructors tc)}} →
-             τ ∈ typesInConstructors tc →
-             Expr [] Γ (`Eq` $ τ)
-findDict {{ck}} {{eqs}} p = EqC.eqDict (∈-All eqs p)
-
+RequiredEq : ADT ∗ → Set
+RequiredEq adt = All EqC (typesInConstructors adt)
 
 firstBinder : ∀ {A : Set} {x y : A} {xs ys zs : List A} →
                 x ∈ (xs +++ (x ∷ (ys ++ (xs +++ (y ∷ (ys ++ zs))))))
@@ -113,75 +58,80 @@ secondBinder {_} {x} {_} {xs} {ys} {zs}
     (tl (∈-++-suffix {ys = ys} (∈-+++-suffix {ys = xs} hd)))
 
 
-compareArgs : ∀ {tc : TyCon ∗} {{ck : ConstructorsKnown tc}}
-                {{eqs : All EqC (typesInConstructors tc)}} →
-                (binders : Cxt [])
-                (p : binders ⊆ typesInConstructors tc)
-                {τs : List (Type [] ∗)} →
+
+findDict : ∀ {adt : ADT ∗} {{eqs : RequiredEq adt}} {Γ : Cxt []} →
+             (τ : Type [] ∗) →
+             τ ∈ typesInConstructors adt →
+             Expr [] Γ (con `Eq` $ τ)
+findDict {_} {{eqs}} {_} τ p = EqC.eqDict (∈-All eqs p)
+
+
+compareArgs : ∀ {adt : ADT ∗} → {{eqs : RequiredEq adt}}
+                (binders : Cxt []) →
+                (p : binders ⊆ typesInConstructors adt) →
+                (τs : List (Type [] ∗)) →
                 Expr [] (binders +++ (τs ++ binders +++
-                         (τs ++ con tc ∷ con tc ∷ [])))
+                         (τs ++ con (adtTyCon adt) ∷ con (adtTyCon adt) ∷ [])))
                         (con `Bool`)
-compareArgs [] _ = con `True`
-compareArgs {tc} {{ck}} {{eqs}} (τ ∷ binders) p {τs}
+compareArgs [] _ _ = con `True`
+compareArgs {adt} (τ ∷ binders) p τs
   = `&&` $ (`==` [ τ ] $
-            findDict {tc = tc} {τ = τ} (∈-over-⊆ p hd) $
+            findDict {adt = adt} τ (∈-over-⊆ p hd) $
             var (firstBinder {xs = binders} {ys = τs}) $
             var (secondBinder {xs = binders} {ys = τs}))
-         $ compareArgs {tc} binders (⊆-trans (⊆-skip id) p) {τs = τ ∷ τs}
+         $ compareArgs binders (⊆-trans (⊆-skip id) p) (τ ∷ τs)
+
+⊆-p : ∀ (adt : ADT ∗) (dc : DataCon (adtTyCon adt)) →
+        patBinders (con [] dc) ⊆ typesInConstructors adt
+⊆-p adt (con ._ i)
+  = ⊆-map-inj (λ p → ∈-concatMap p (∈-map-inj (Fin∈allFin i)))
 
 
-∈-concatMap : ∀ {A B : Set} {a} {b} {as} {f : A → List B} →
-                b ∈ f a → a ∈ as → b ∈ concatMap f as
-∈-concatMap {as = []} p ()
-∈-concatMap {as = ._ ∷ _} p hd = ∈-++-prefix p
-∈-concatMap {as = a′ ∷ _} {f = f} p (tl q)
-  = ∈-++-suffix {ys = f a′} (∈-concatMap p q)
-
-barry : (tc : TyCon ∗) {{ck : ConstructorsKnown tc}} →
-        (dc : DataCon tc) →
-        dc ∈ constructors →
-        dataConArgs dc ⊆ typesInConstructors tc
-barry tc {{ck}} dc p q = ∈-concatMap q p
-
-elephant : ∀ (tc : TyCon ∗) (dc : DataCon tc) {{ck : ConstructorsKnown tc}} →
-             dc ∈ ConstructorsKnown.constructors ck
-elephant tc dc {{ck}} = {!!}
-
-⊆-p : ∀ (tc : TyCon ∗) (dc : DataCon tc) {{ck : ConstructorsKnown tc}} →
-        patBinders (con [] dc) ⊆ typesInConstructors tc
-⊆-p tc dc {{ck}} p
-  = let foo : dataConArgs dc ⊆ typesInConstructors tc
-        foo = barry tc dc (elephant tc dc)
-    in {!!}
-
-makeNestedBranch : ∀ {tc} {{ck : ConstructorsKnown tc}}
-                     {{eqs : All EqC (typesInConstructors tc)}} →
-                     (dc dc′ : DataCon tc) →
+makeNestedBranch : ∀ {adt : ADT ∗} {{eqs : RequiredEq adt}} →
+                     (dc dc′ : DataCon (adtTyCon adt)) →
                      Branch [] (patBinders (con [] dc) +++
-                                con tc ∷ con tc ∷ [])
-                               (con tc) (con `Bool`)
-makeNestedBranch {tc} dc dc′ with dc == dc′
+                                con (adtTyCon adt) ∷ con (adtTyCon adt) ∷ [])
+                               (con (adtTyCon adt)) (con `Bool`)
+makeNestedBranch {adt} dc dc′ with dc == dc′
 ... | no ¬eq = alt (con [] dc′) (con `False`)
-... | yes eq = alt (con [] dc)
-                   (compareArgs (patBinders (con [] dc))
-                                (⊆-p tc dc) {τs = []})
+... | yes eq = alt (con [] dc) (compareArgs (patBinders (con [] dc))
+                                            (⊆-p adt dc) [])
+
+makeBranch : ∀ {adt : ADT ∗} {{eqs : RequiredEq adt}} →
+               (dc : DataCon (adtTyCon adt)) →
+               Branch [] (con (adtTyCon adt) ∷ con (adtTyCon adt) ∷ [])
+                         (con (adtTyCon adt)) (con `Bool`)
+makeBranch {adt} dc
+  = alt (con [] dc) (match (var (∈-+++-suffix {ys = patBinders (con [] dc)} hd))
+                           (map (makeNestedBranch dc) (adtDataCons adt)) refl)
+
+deriveEq : (adt : ADT ∗) (eqs : RequiredEq adt) →
+           Expr [] [] (con (adtTyCon adt) ⇒ con (adtTyCon adt) ⇒ con `Bool`)
+deriveEq adt eqs
+  = lam (con (con adt)) (lam (con (adtTyCon adt))
+                             (match (var (tl hd))
+                                    (map makeBranch (adtDataCons adt))
+                                    refl))
 
 
 
-makeBranch : ∀ {tc : TyCon ∗} {{ck : ConstructorsKnown tc}}
-               {{eqs : All EqC (typesInConstructors tc)}} →
-               (dc : DataCon tc) →
-               Branch [] (con tc ∷ con tc ∷ []) (con tc) (con `Bool`)
-makeBranch dc
-  = alt (con [] dc)
-        (match (var (∈-+++-suffix {ys = patBinders (con [] dc)} hd))
-               (map (makeNestedBranch dc) constructors) refl)
 
-deriveEq : (tc : TyCon ∗) {{ck : ConstructorsKnown tc}}
-           {{eqs : All EqC (typesInConstructors tc)}} →
-           Expr [] [] (con tc ⇒ con tc ⇒ con `Bool`)
-deriveEq tc {{ck}} {{eqs}}
-  = lam (con tc) (lam (con tc)
-                      (match (var (tl hd))
-                             (map makeBranch constructors)
-                             refl))
+-- data Foo = Barry | Bar Bool
+
+
+-- `eqFoo` : Expr [] [] (con `Foo` ⇒ con `Foo` ⇒  con `Bool`)
+-- `eqFoo` = lam (con `Foo`) (lam (con `Foo`)
+--               (match (var (tl hd))
+--                      (alt (con [] `Barry`)
+--                           (match (var hd)
+--                           (alt (con [] `Barry`) (con `True`) ∷
+--                             alt (con [] `Bar`) (con `False`) ∷ []) refl) ∷
+--                       alt (con [] `Bar`)
+--                           (match (var (tl hd))
+--                           (alt (con [] `Barry`) (con `False`) ∷
+--                           alt (con [] `Bar`) (`eq` (var (tl hd)) (var hd)) ∷ [])
+--                           refl)
+--                       ∷ []) refl))
+
+`eqFoo` : Expr [] [] (con `Foo` ⇒ con `Foo` ⇒  con `Bool`)
+`eqFoo` = deriveEq FooADT (`EqBool` ∷ [])

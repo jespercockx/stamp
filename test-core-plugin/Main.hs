@@ -7,7 +7,12 @@ agda = error "Compiler plugin did not run correctly"
 {-# NOINLINE agda #-}
 
 main :: IO ()
-main = putStrLn "Test"
+main = do
+  putStrLn $ "Barry `eqFoo` Barry: " ++ show (Barry `eqFoo` Barry)
+  putStrLn $ "Barry `eqFoo` Bar True: " ++ show (Barry `eqFoo` Bar True)
+  putStrLn $ "Bar True `eqFoo` Bar True: " ++ show (Bar True `eqFoo` Bar True)
+  putStrLn $ "Bar False `eqFoo` Bar True: " ++ show (Bar False `eqFoo` Bar True)
+  putStrLn $ "Bar True `eqFoo` Bar False: " ++ show (Bar True `eqFoo` Bar False)
 -- main = agda
 -- main = putStrLn "hello world" -- ("Hello World: " ++ show ((agda :: Bool -> Bool) True))
 -- main = putStrLn $ showFoo Barry ++ " " ++ showFoo (Bar True)

@@ -172,6 +172,20 @@ _+++_ : ∀ {A : Set} → List A → List A → List A
 ... | left r = ∈-+++′ (left r)
 ... | right r = ∈-+++′ {xs = xs} (right (∈-+++′ (left r)))
 
+∈-concatMap : ∀ {A B : Set} {a} {b} {as} {f : A → List B} →
+                b ∈ f a → a ∈ as → b ∈ concatMap f as
+∈-concatMap {as = []} p ()
+∈-concatMap {as = ._ ∷ _} p hd = ∈-++-prefix p
+∈-concatMap {as = a′ ∷ _} {f = f} p (tl q)
+  = ∈-++-suffix {ys = f a′} (∈-concatMap p q)
+
+∈-map-inj : ∀ {A B : Set} {x : A} {xs : List A} {f : A → B} →
+              x ∈ xs → f x ∈ map f xs
+∈-map-inj {xs = []} ()
+∈-map-inj {xs = ._ ∷ xs} hd = hd
+∈-map-inj {xs = y ∷ xs} (tl p) = tl (∈-map-inj p)
+
+
 
 
 infix 4 _⊆_
@@ -217,7 +231,19 @@ xs ⊈ ys = ¬ (xs ⊆ ys)
 ⊆-cons-middle _ | right hd = hd
 ⊆-cons-middle {x = x} {xs = xs} _ | right (tl q) = ∈-++′ {xs = x ∷ xs} (right q)
 
+⊆-map-inj : ∀ {A B : Set} {xs ys : List A} {f : A → B} →
+              xs ⊆ ys → map f xs ⊆ map f ys
+⊆-map-inj {xs = []} p ()
+⊆-map-inj {xs = x ∷ xs} p hd = ∈-map-inj (p hd)
+⊆-map-inj {xs = x ∷ xs} p (tl q) = ⊆-map-inj (λ z → p (tl z)) q
+
+
 allFin : (n : Nat) → List (Fin n)
 allFin zero = []
 allFin (suc n) = zero ∷ map suc (allFin n)
 
+
+Fin∈allFin : ∀ {n : Nat} → (i : Fin n) → i ∈ allFin n
+Fin∈allFin {zero} ()
+Fin∈allFin {suc n} zero = hd
+Fin∈allFin {suc n} (suc i) = tl (∈-map-inj (Fin∈allFin i))
