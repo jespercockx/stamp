@@ -54,6 +54,13 @@ catMaybes (just x ∷ l) = x ∷ catMaybes l
 mapMaybe : ∀ {A B : Set} → (A → Maybe B) → List A → List B
 mapMaybe f = catMaybes ∘ map f
 
+
+compose-map : ∀ {A B C : Set} → (xs : List A) (f : A → B) (g : B → C)  →
+                map g (map f xs) ≡ map (g ∘ f) xs
+compose-map [] _ _ = refl
+compose-map (x ∷ xs) f g rewrite compose-map xs f g = refl
+
+
 ++-[] : ∀ {A : Set} {xs : List A} → xs ++ [] ≡ xs
 ++-[] {xs = []} = refl
 ++-[] {xs = x ∷ xs} = cong (λ zs → x ∷ zs) ++-[]

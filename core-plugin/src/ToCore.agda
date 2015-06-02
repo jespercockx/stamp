@@ -103,21 +103,21 @@ instance
     = record { toCore = λ { (fcon q s) →
                             lookupForeignDataCon (qname dataNameSpace q s) } }
 
-  ToCorePat : ∀ {Σ τ} → ToCore (Pat Σ τ) AltCon
+  ToCorePat : ∀ {Σ κ adt tyArgs} → ToCore (Pat Σ {κ} adt tyArgs) AltCon
   ToCorePat = record { toCore = tr }
     where
-      tr : ∀ {Σ τ} → Pat Σ τ → ToCoreM AltCon
+      tr : ∀ {Σ adt tyArgs} → Pat Σ adt tyArgs → ToCoreM AltCon
       tr ̺          = pure DEFAULT
       tr (lit l)    = pure (LitAlt l)
-      tr (con _ dc) = DataAlt <$> toCore (dataConForeignDataCon dc)
+      tr (con dc) = DataAlt <$> toCore (dataConForeignDataCon dc)
 
   ToCoreExpr : ∀ {Σ Γ τ} → ToCore (Expr Σ Γ τ) CoreExpr
   {-# TERMINATING #-}
 
-  ToCoreBranch : ∀ {Σ Γ τ₁ τ₂} → ToCore (Branch Σ Γ τ₁ τ₂) CoreAlt
+  ToCoreBranch : ∀ {Σ Γ κ adt tyArgs τ} → ToCore (Branch Σ Γ {κ} adt tyArgs τ) CoreAlt
   ToCoreBranch = record { toCore = tr }
     where
-      tr : ∀ {Σ Γ τ₁ τ₂} → Branch Σ Γ τ₁ τ₂ → ToCoreM CoreAlt
+      tr : ∀ {Σ Γ κ adt tyArgs τ} → Branch Σ Γ {κ} adt tyArgs τ → ToCoreM CoreAlt
       tr (alt p e) = mapM toCore (patBinders p) >>= λ binderTypes →
                      withFreshVars binderTypes λ binders →
                      triple <$> toCore p <*> pure binders <*> toCore e
@@ -138,7 +138,7 @@ instance
       tr (lit (flit l))    = pure (Lit l)
       tr (fvar (fvar q s)) = Var' <$> lookupForeignId (qname varNameSpace q s)
       tr {τ = τ} (fdict fdict) = toCore τ >>= λ ct → Var' <$> lookupInstance ct
-      tr {τ = τ} (match sc bs _)
+      tr {τ = τ} (match _ _ sc bs _)
         = Case <$> toCore sc <*>
                    (mkWildValBinder <$> toCore (exprType sc)) <*>
                    toCore τ <*>

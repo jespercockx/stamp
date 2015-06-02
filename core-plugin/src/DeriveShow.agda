@@ -22,10 +22,10 @@ FooADT = makeADT (fcon "Data" "Foo")
 
 `showFoo` : Expr [] [] (con `Foo` ⇒ `String`)
 `showFoo` = lam (con `Foo`)
-                (match (var hd)
-                (alt (con [] `Barry`) (str "Barry") ∷
-                 alt (con [] `Bar`) (stringAppend $ (str "Bar ") $ show (var hd)) ∷ [])
-                refl)
+                (match FooADT [] (var hd)
+                       (alt (con `Barry`) (str "Barry") ∷
+                        alt (con `Bar`) (stringAppend $ (str "Bar ") $ show (var hd)) ∷ [])
+                       refl)
 
 -- showFoo :: Foo -> String
 -- showFoo = \foo -> case foo of
