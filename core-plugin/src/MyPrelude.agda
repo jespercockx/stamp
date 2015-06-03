@@ -46,6 +46,11 @@ instance
 
 
 
+¬true-false : ∀ {b : Bool} → ¬ (b ≡ true) → b ≡ false
+¬true-false {false} p = refl
+¬true-false {true} p = ⊥-elim (p refl)
+
+
 catMaybes : ∀ {A : Set} → List (Maybe A) → List A
 catMaybes [] = []
 catMaybes (nothing ∷ l) = catMaybes l
@@ -191,6 +196,21 @@ _+++_ : ∀ {A : Set} → List A → List A → List A
 ∈-map-inj {xs = []} ()
 ∈-map-inj {xs = ._ ∷ xs} hd = hd
 ∈-map-inj {xs = y ∷ xs} (tl p) = tl (∈-map-inj p)
+
+
+∈-filter : ∀ {A : Set} {x : A} {xs : List A} {test : A → Bool} →
+             x ∈ xs → test x ≡ true → x ∈ filter test xs
+∈-filter hd q rewrite q = hd
+∈-filter {test = test} (tl {y} p) q with test y
+... | true = tl (∈-filter p q)
+... | false = ∈-filter p q
+
+∈-filter-not : ∀ {A : Set} {x : A} {xs : List A} {test : A → Bool} →
+                 x ∈ xs → ¬(test x ≡ true) → x ∈ filter (not ∘ test) xs
+∈-filter-not hd q rewrite ¬true-false q = hd
+∈-filter-not {test = test} (tl {y} p) q with test y
+... | true = ∈-filter-not p q
+... | false = tl (∈-filter-not p q)
 
 
 

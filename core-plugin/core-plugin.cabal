@@ -38,6 +38,7 @@ library
                      , MAlonzo.Code.Control.Monad.Reader
                      , MAlonzo.Code.Prelude.List
                      , MAlonzo.Code.Prelude.Applicative
+                     , MAlonzo.Code.Prelude.Bool
                      , MAlonzo.Code.Prelude.Ord
                      , MAlonzo.Code.Prelude.Nat
                      , MAlonzo.Code.Prelude.Nat.Core

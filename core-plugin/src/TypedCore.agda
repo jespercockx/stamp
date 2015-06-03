@@ -94,25 +94,6 @@ saturatedTyCxt = satTyCxt ∘ saturate
 satTyCxt-⊆ : ∀ {κ κₛ} → (sat : Saturates κₛ) → satTyCxt sat ⊆ satTyCxt (κ ∷ sat)
 satTyCxt-⊆ sat p = ∈-suffix p
 
--- Saturates the type with kind κ using the types stored in the contexts
---
--- Examples:
---
---     postulate
---       t₁ : Type ((∗ ⇒ ∗ ⇒ ∗) ∷ (∗ ⇒ ∗) ∷ []) ((∗ ⇒ ∗) ⇒ (∗ ⇒ ∗ ⇒ ∗) ⇒ ∗)
---       MaybeT : Type (∗ ∷ (∗ ⇒ ∗) ∷ []) ((∗ ⇒ ∗) ⇒ ∗ ⇒ ∗)
---     saturateType t₁ ≡ t₁ $ var (tl hd) $ var hd
---     saturateType MaybeT = MaybeT $ var (tl hd) $ var hd
---
-saturateType : ∀ {κ} → Type (saturatedTyCxt κ) κ → Type (saturatedTyCxt κ) ∗
-saturateType {κ} = go (saturate κ) ⊆-refl
-  where
-    go : ∀ {Σ κ} → (sat : Saturates κ) → satTyCxt sat ⊆ Σ → Type Σ κ → Type Σ ∗
-    go []         _ τ = τ
-    go (κ₁ ∷ sat) p τ
-       = go sat (⊆-trans (satTyCxt-⊆ sat) p)
-                (τ $ tvar (∈-over-⊆ p (∈-++-suffix {ys = satTyCxt sat} hd)))
-
 data ForeignTyCon : Set where
   fcon : Module → Ident → ForeignTyCon
 
@@ -158,7 +139,6 @@ tyConConstructors : ∀ {κ} → TyCon κ → List ForeignDataCon
 tyConConstructors (con adt) = vecToList (fst <$> ADT.constructors adt)
 
 tyConType : ∀ {κ} → (tc : TyCon κ) → Type (tyConCxt tc) ∗
-tyConType tc = saturateType (con tc)
 
 adtTyCon : ∀ {κ} → ADT κ → TyCon κ
 adtTyCon = con
@@ -194,14 +174,14 @@ mkForAll : ∀ (Σ : TyCxt) → Type Σ ∗ → Type [] ∗
 mkForAll [] τ = τ
 mkForAll (κ ∷ Σ) τ = mkForAll Σ (forAll κ τ)
 
-mkFun : ∀ {Σ : TyCxt} → Cxt Σ → Type Σ ∗ → Type Σ ∗
-mkFun []       τ = τ
-mkFun (τ₁ ∷ Γ) τ = τ₁ ⇒ mkFun Γ τ
+mkFunRev : ∀ {Σ : TyCxt} → Cxt Σ → Type Σ ∗ → Type Σ ∗
+mkFunRev []       τ = τ
+mkFunRev (τ₁ ∷ Γ) τ = τ₁ ⇒ mkFunRev Γ τ
 
 dcType : ∀ {κ} {tc : TyCon κ} → DataCon tc → Type [] ∗
 dcType {κ} dc = mkForAll (ADT.tyCxt adt)
-                         (mkFun (dataConArgs dc)
-                                (tyConType (con adt)))
+                         (mkFunRev (dataConArgs dc)
+                                   (tyConType (con adt)))
   where
     adt : ADT κ
     adt = dataConADT dc
@@ -257,7 +237,6 @@ Adt-inj₂ refl = refl
 Adt-inj₃ : ∀ {κ} {ftc₁ ftc₂} {n} {cs₁ cs₂} →
              Adt {κ} ftc₁ n cs₁ ≡ Adt {κ} ftc₂ n cs₂ → cs₁ ≡ cs₂
 Adt-inj₃ refl = refl
-
 
 instance
   -- {{Eq A}} gives problems when generating the code
@@ -351,6 +330,14 @@ applyTyArgs : ∀ {Σ κ} → Type Σ κ → Types Σ (saturatedTyCxt κ) → Ty
 applyTyArgs {κ = ∗} τ [] = τ
 applyTyArgs {Σ} {κ = κ ⇒ κ₁} τ τs with lastAll τs
 ... | τs′ , τ₁ = applyTyArgs (τ $ τ₁) τs′
+
+
+Types-Σ : ∀ Σ → Types Σ Σ
+Types-Σ [] = []
+Types-Σ (κ ∷ Σ) = tvar hd ∷ weakenTypes (Types-Σ Σ)
+
+
+tyConType tc = applyTyArgs (con tc) (Types-Σ (tyConCxt tc))
 
 
 data Branch (Σ : TyCxt) (Γ : Cxt Σ) {κ} (adt : ADT κ)

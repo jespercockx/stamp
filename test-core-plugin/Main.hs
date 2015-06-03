@@ -44,7 +44,7 @@ main = do
 
 
 
-eqPair :: (Eq a, Eq b) => Pair a b -> Pair a b -> Bool
+eqPair :: (Eq b, Eq a) => Pair a b -> Pair a b -> Bool
 eqPair = agda
 -- eqPair p1 p2 = case p1 of
 --   Pair a1 b1 -> case p2 of
