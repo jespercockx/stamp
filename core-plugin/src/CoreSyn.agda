@@ -337,10 +337,8 @@ replaceAgdaWith′ repl = transform t f
     t (Var' id) with getOccString id == "agda"
     ... | yes p  = yes tt
     ... | no _   = no
-    t (App e' (Type' _))   = t e'
-    t (Lam v e') with isTyVar v
-    ... | true  = t e'
-    ... | false = no
+    t (App e' (Type' _)) = t e'
+    t (Lam v e') = t e' -- Look through type + dict abstractions
     t _ = no
     f : Σ CoreExpr (λ e → ⊤) → CoreM CoreExpr
     f _ = repl

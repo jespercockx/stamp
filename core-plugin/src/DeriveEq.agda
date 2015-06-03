@@ -175,3 +175,47 @@ deriveEq adt eqs
 
 `eqFoo` : Expr [] [] (con `Foo` ⇒ con `Foo` ⇒  con `Bool`)
 `eqFoo` = deriveEq FooADT (`EqBool` ∷ [])
+
+
+-- data Pair a b = Pair a b
+
+PairADT : ADT (∗ ⇒ ∗ ⇒ ∗)
+PairADT = makeADT (fcon "Data" "Pair")
+                  ((fcon "Data" "Pair" , tvar (tl hd) ∷ tvar hd ∷ []) ∷ [])
+
+`Pair` : TyCon (∗ ⇒ ∗ ⇒ ∗)
+`Pair` = con PairADT
+
+`pair` : DataCon `Pair`
+`pair` = con PairADT zero
+
+
+
+`eqPair` : Expr [] []
+                (forAll ∗
+                (forAll ∗
+                ((con `Eq` $ tvar (tl hd)) ⇒
+                 (con `Eq` $ tvar hd) ⇒
+                 (con `Pair` $ tvar (tl hd) $ tvar hd) ⇒
+                 (con `Pair` $ tvar (tl hd) $ tvar hd) ⇒
+                 con `Bool`)))
+`eqPair`
+  = Λ ∗
+   (Λ ∗
+   (lam (con `Eq` $ tvar (tl hd))
+   (lam (con `Eq` $ tvar hd)
+   (lam (con `Pair` $ tvar (tl hd) $ tvar hd)
+   (lam (con `Pair` $ tvar (tl hd) $ tvar hd)
+   (match PairADT (tvar hd ∷ tvar (tl hd) ∷ []) (var (tl hd))
+          (alt (con `pair`)
+               (match PairADT (tvar hd ∷ tvar (tl hd) ∷ []) (var (tl (tl hd)))
+                      (alt (con `pair`)
+                           (`&&`
+                           $ (`==` [ tvar (tl hd) ]
+                             $ var (tl (tl (tl (tl (tl (tl (tl hd)))))))
+                             $ var (tl hd) $ var (tl (tl (tl hd))))
+                           $ (`==` [ tvar hd ]
+                             $ var (tl (tl (tl (tl (tl (tl hd))))))
+                             $ var hd $ var (tl (tl hd)))) ∷ [])
+                            refl)
+                           ∷ []) refl))))))
