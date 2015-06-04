@@ -210,12 +210,15 @@ mkLam : ∀ {Σ : TyCxt} {Γ : Cxt Σ} {τ : Type Σ ∗} → Expr Σ Γ τ →
 mkLam {Σ} {[]}     e = e
 mkLam {Σ} {τ₁ ∷ Γ} e = mkLam {Γ = Γ} (lam τ₁ e)
 
+deriveEqType : ∀ {κ} → ADT κ → Type [] ∗
+deriveEqType adt = mkForAll (ADT.tyCxt adt)
+                            (mkFun (RequiredEqAtRunTime adt)
+                            (tyConType (adtTyCon adt) ⇒
+                             tyConType (adtTyCon adt) ⇒
+                             con `Bool`))
+
 deriveEq : ∀ {κ} → (adt : ADT κ) (eqs : RequiredEqAtCompileTime adt) →
-           Expr [] [] (mkForAll (ADT.tyCxt adt)
-                      (mkFun (RequiredEqAtRunTime adt)
-                      (tyConType (adtTyCon adt) ⇒
-                       tyConType (adtTyCon adt) ⇒
-                       con `Bool`)))
+           Expr [] [] (deriveEqType adt)
 deriveEq adt eqs
   = mkΛ (ADT.tyCxt adt)
     (mkLam {Γ = RequiredEqAtRunTime adt}
@@ -241,7 +244,7 @@ deriveEq adt eqs
 --                           refl)
 --                       ∷ []) refl))
 
-`eqFoo` : Expr [] [] (con `Foo` ⇒ con `Foo` ⇒  con `Bool`)
+`eqFoo` : Expr [] [] (deriveEqType FooADT)
 `eqFoo` = deriveEq FooADT (`EqBool` ∷ [])
 
 
@@ -258,18 +261,9 @@ PairADT = makeADT (fcon "Data" "Pair")
 `pair` = con PairADT zero
 
 -- TODO CONTINUE reverse order of Eq arguments
--- + deriveEqType
 
 
-`eqPair` : Expr [] []
-                (forAll ∗
-                (forAll ∗
-                ((con `Eq` $ tvar hd) ⇒
-                 (con `Eq` $ tvar (tl hd)) ⇒
-                 (con `Pair` $ tvar (tl hd) $ tvar hd) ⇒
-                 (con `Pair` $ tvar (tl hd) $ tvar hd) ⇒
-                 con `Bool`)))
-
+`eqPair` : Expr [] [] (deriveEqType PairADT)
 `eqPair` = deriveEq PairADT []
 
 -- `eqPair`
