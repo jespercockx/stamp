@@ -76,16 +76,6 @@ saturate (κ₁ ⇒ κ₂) = κ₁ ∷ saturate κ₂
 satTyCxt : ∀ {κ} → Saturates κ → TyCxt
 satTyCxt [] = []
 satTyCxt (κ ∷ sat) = satTyCxt sat ++ (κ ∷ [])
--- More efficient alternative:
---
---     satTyCxt : ∀ {κ} → Saturates κ → TyCxt
---     satTyCxt = reverse ∘ convert
---       where
---         convert : ∀ {κ} → Saturates κ → TyCxt
---         convert [] = []
---         convert (κ ∷ sat) = κ ∷ convert sat
---
--- However, `satTyCxt-⊆` becomes much harder to prove.
 
 saturatedTyCxt : ∀ κ → TyCxt
 saturatedTyCxt = satTyCxt ∘ saturate

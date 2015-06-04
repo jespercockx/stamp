@@ -1,6 +1,6 @@
 module MyPrelude where
 
-open import Prelude hiding (trans) public
+open import Prelude hiding (trans; reverse) public
 open import Control.Monad.Reader public
 open import Control.Monad.Trans public
 open import Control.Monad.State hiding (lift) public
@@ -211,6 +211,18 @@ _+++_ : ∀ {A : Set} → List A → List A → List A
 ∈-filter-not {test = test} (tl {y} p) q with test y
 ... | true = ∈-filter-not p q
 ... | false = tl (∈-filter-not p q)
+
+
+-- Less efficient than the reverse in Prelude.List, but easier to prove
+-- properties about.
+reverse : ∀ {A : Set} → List A → List A
+reverse []       = []
+reverse (x ∷ xs) = reverse xs ++ [ x ]
+
+∈-reverse : ∀ {A : Set} {x : A} {xs : List A} → x ∈ xs → x ∈ reverse xs
+∈-reverse {xs = []} ()
+∈-reverse {xs = ._ ∷ xs} hd    = ∈-++-suffix {ys = reverse xs} hd
+∈-reverse {xs = y ∷ xs} (tl p) = ∈-++-prefix (∈-reverse p)
 
 
 

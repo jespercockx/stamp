@@ -63,7 +63,7 @@ RequiredEqAtCompileTime adt
 
 RequiredEqAtRunTime : ∀ {κ} → (adt : ADT κ) → Cxt (ADT.tyCxt adt)
 RequiredEqAtRunTime adt
-  = map (_$_ (con `Eq`)) (filter openType (typesInConstructors adt))
+  = reverse (map (_$_ (con `Eq`)) (filter openType (typesInConstructors adt)))
 
 
 
@@ -97,7 +97,8 @@ findDict {_} {adt} {{eqs}} {binders} {τs} τ p with closedType τ == true
                        (∈-++-suffix {ys = τs}
                        (tl
                        (tl
-                       (∈-map-inj (∈-filter-not p ¬closed))))))))))
+                       (∈-reverse
+                       (∈-map-inj (∈-filter-not p ¬closed)))))))))))
 
 
 compareArgs : ∀ {κ} {adt : ADT κ} → {{eqs : RequiredEqAtCompileTime adt}}
@@ -259,8 +260,6 @@ PairADT = makeADT (fcon "Data" "Pair")
 
 `pair` : DataCon `Pair`
 `pair` = con PairADT zero
-
--- TODO CONTINUE reverse order of Eq arguments
 
 
 `eqPair` : Expr [] [] (deriveEqType PairADT)
