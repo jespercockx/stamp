@@ -305,9 +305,11 @@ data ForeignDict (Σ : TyCxt) (τ : Type Σ ∗) : Set where
 Types : TyCxt → List Kind → Set
 Types Σ = All (Type Σ)
 
-weakenTypes : ∀ {κ κs Σ} → Types Σ κs → Types (κ ∷ Σ) κs
-weakenTypes [] = []
-weakenTypes (τ ∷ τs) = weakenType τ (⊆-skip ⊆-refl) ∷ weakenTypes τs
+
+weakenTypes : ∀ {κs Σ₁ Σ₂} → Types Σ₁ κs → (p : Σ₁ ⊆ Σ₂) → Types Σ₂ κs
+weakenTypes [] _ = []
+weakenTypes (τ ∷ τs) p = weakenType τ p ∷ weakenTypes τs p
+
 
 lastAll : ∀ {A : Set} {P : A → Set} {xs : List A} {x : A} →
             All P (xs ++ x ∷ []) → All P xs × P x
@@ -324,7 +326,7 @@ applyTyArgs {Σ} {κ = κ ⇒ κ₁} τ τs with lastAll τs
 
 Types-Σ : ∀ Σ → Types Σ Σ
 Types-Σ [] = []
-Types-Σ (κ ∷ Σ) = tvar hd ∷ weakenTypes (Types-Σ Σ)
+Types-Σ (κ ∷ Σ) = tvar hd ∷ weakenTypes (Types-Σ Σ) tl
 
 
 tyConType tc = applyTyArgs (con tc) (Types-Σ (tyConCxt tc))
@@ -373,7 +375,7 @@ transplant : ∀ {κ Σ Σ′} → Types Σ′ Σ →
 transplant τs (tvar n)     = transplantVar n τs
 transplant τs (τ₁ $ τ₂)    = transplant τs τ₁ $ transplant τs τ₂
 transplant τs (τ₁ ⇒ τ₂)    = transplant τs τ₁ ⇒ transplant τs τ₂
-transplant τs (forAll κ τ) = forAll κ (transplant (tvar hd ∷ weakenTypes τs) τ)
+transplant τs (forAll κ τ) = forAll κ (transplant (tvar hd ∷ weakenTypes τs tl) τ)
 transplant τs (con c)      = con c
 transplant τs (lit l)      = lit l
 
