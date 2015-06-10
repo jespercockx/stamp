@@ -66,6 +66,12 @@ compose-map [] _ _ = refl
 compose-map (x ∷ xs) f g rewrite compose-map xs f g = refl
 
 
+map-≡ : ∀ {A B : Set} {xs : List A} (f g : A → B) →
+          (∀ {x} → f x ≡ g x) → map f xs ≡ map g xs
+map-≡ {xs = []} _ _ h = refl
+map-≡ {xs = x ∷ xs} f g h rewrite h {x} | map-≡ {xs = xs} f g h = refl
+
+
 ++-[] : ∀ {A : Set} {xs : List A} → xs ++ [] ≡ xs
 ++-[] {xs = []} = refl
 ++-[] {xs = x ∷ xs} = cong (λ zs → x ∷ zs) ++-[]
@@ -241,6 +247,10 @@ xs ⊈ ys = ¬ (xs ⊆ ys)
 ⊆-empty : ∀ {A : Set} {xs : List A} → [] ⊆ xs
 ⊆-empty ()
 
+⊆-empty-⊥ : ∀ {A : Set} {x : A} {xs : List A} → x ∷ xs ⊆ [] → ⊥
+⊆-empty-⊥ p with p hd
+⊆-empty-⊥ p | ()
+
 ⊆-swap : ∀ {A : Set} {x y : A} {xs : List A} → (x ∷ y ∷ xs) ⊆ (y ∷ x ∷ xs)
 ⊆-swap hd = tl hd
 ⊆-swap (tl hd) = hd
@@ -262,6 +272,11 @@ xs ⊈ ys = ¬ (xs ⊆ ys)
 ⊆-++-swap : ∀ {A : Set} (xs ys : List A) → xs ++ ys ⊆ ys ++ xs
 ⊆-++-swap xs ys = ∈-++-swap {xs = xs} {ys = ys}
 
+⊆-+++-prefix : ∀ {A : Set} {xs ys zs : List A} → xs ⊆ ys →
+                 zs +++ xs ⊆ zs +++ ys
+⊆-+++-prefix {zs = zs} p q with ∈-+++ {xs = zs} q
+⊆-+++-prefix {zs = zs} p q | left r = ∈-+++-prefix r
+⊆-+++-prefix {zs = zs} p q | right r = ∈-+++-suffix {ys = zs} (p r)
 
 ⊆-cons-middle : ∀ {A : Set} {x : A} {xs ys : List A} →
                   xs ++ (x ∷ ys) ⊆ (x ∷ xs) ++ ys
