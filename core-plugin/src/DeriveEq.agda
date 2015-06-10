@@ -41,7 +41,7 @@ instance
 
 typesInConstructors : ∀ {κ} → (adt : ADT κ) → Cxt (ADT.tyCxt adt)
 typesInConstructors adt
-  = map (transplant (Types-Σ (ADT.tyCxt adt)))
+  = map (substTyArgs (Types-Σ (ADT.tyCxt adt)))
         (concatMap dataConArgs (adtDataCons adt))
 
 -- Type doesn't contain a type variable or forAll

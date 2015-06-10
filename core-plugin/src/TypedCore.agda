@@ -209,7 +209,7 @@ substTop τ (tvar (tl x)) = tvar x
 substTop τ (t₁ $ t₂)     = substTop τ t₁ $ substTop τ t₂
 substTop τ (t₁ ⇒ t₂)     = substTop τ t₁ ⇒ substTop τ t₂
 substTop τ (forAll κ t)  = forAll κ (substTop (weakenType τ (⊆-skip ⊆-refl))
-                                             (weakenType t ⊆-swap))
+                                              (weakenType t ⊆-swap))
 substTop τ (con c)       = con c
 substTop τ (lit l)       = lit l
 
@@ -365,23 +365,22 @@ data Pat (Σ : TyCxt) {κ} (adt : ADT κ) (tyArgs : Types Σ (ADT.tyCxt adt)) :
   lit : Literal → Pat Σ adt tyArgs
   con : (dc : DataCon (con adt)) → Pat Σ adt tyArgs
 
--- TODO name and intuition behind it
-transplantVar : ∀ {κ κs Σ} → κ ∈ κs → Types Σ κs → Type Σ κ
-transplantVar hd (τ ∷ _) = τ
-transplantVar (tl n) (p ∷ τs) = transplantVar n τs
+substTyArg : ∀ {κ κs Σ} → κ ∈ κs → Types Σ κs → Type Σ κ
+substTyArg hd (τ ∷ _) = τ
+substTyArg (tl n) (p ∷ τs) = substTyArg n τs
 
-transplant : ∀ {κ Σ Σ′} → Types Σ′ Σ →
-               Type Σ κ → Type Σ′ κ
-transplant τs (tvar n)     = transplantVar n τs
-transplant τs (τ₁ $ τ₂)    = transplant τs τ₁ $ transplant τs τ₂
-transplant τs (τ₁ ⇒ τ₂)    = transplant τs τ₁ ⇒ transplant τs τ₂
-transplant τs (forAll κ τ) = forAll κ (transplant (tvar hd ∷ weakenTypes τs tl) τ)
-transplant τs (con c)      = con c
-transplant τs (lit l)      = lit l
+substTyArgs : ∀ {κ Σ Σ′} → Types Σ′ Σ →
+                Type Σ κ → Type Σ′ κ
+substTyArgs τs (tvar n)     = substTyArg n τs
+substTyArgs τs (τ₁ $ τ₂)    = substTyArgs τs τ₁ $ substTyArgs τs τ₂
+substTyArgs τs (τ₁ ⇒ τ₂)    = substTyArgs τs τ₁ ⇒ substTyArgs τs τ₂
+substTyArgs τs (forAll κ τ) = forAll κ (substTyArgs (tvar hd ∷ weakenTypes τs tl) τ)
+substTyArgs τs (con c)      = con c
+substTyArgs τs (lit l)      = lit l
 
 
 patBinders : ∀ {Σ κ} {adt : ADT κ} {tyArgs} → Pat Σ {κ} adt tyArgs → Cxt Σ
-patBinders {tyArgs = tyArgs} (con dc) = map (transplant tyArgs) (dataConArgs dc)
+patBinders {tyArgs = tyArgs} (con dc) = map (substTyArgs tyArgs) (dataConArgs dc)
 patBinders _ = []
 
 data Branch Σ Γ {κ} adt tyArgs where
