@@ -344,10 +344,10 @@ data Expr (Σ : TyCxt) (Γ : Cxt Σ) : Type Σ ∗ → Set where
   var     : ∀ {τ} → τ ∈ Γ → Expr Σ Γ τ
   _$_     : ∀ {τ₁ τ₂} → Expr Σ Γ (τ₁ ⇒ τ₂) → Expr Σ Γ τ₁ → Expr Σ Γ τ₂
   _[_]    : ∀ {κ τ₁} → Expr Σ Γ (forAll κ τ₁) → (τ₂ : Type Σ κ) →
-            Expr Σ Γ (substTop τ₂ τ₁)
-  lam     : ∀ τ₁ {τ₂} → Expr Σ (τ₁ :: Γ) τ₂ → Expr Σ Γ (τ₁ ⇒ τ₂)
-  Λ       : ∀ κ {τ} → Expr (κ :: Σ) (weakenCxt Γ (⊆-skip ⊆-refl)) τ →
-            Expr Σ Γ (forAll κ τ)
+              Expr Σ Γ (substTop τ₂ τ₁)
+  lam     : ∀ τ₁ {τ₂} → Expr Σ (τ₁ ∷ Γ) τ₂ → Expr Σ Γ (τ₁ ⇒ τ₂)
+  Λ       : ∀ κ {τ} → Expr (κ ∷ Σ) (weakenCxt Γ (⊆-skip ⊆-refl)) τ →
+              Expr Σ Γ (forAll κ τ)
   con     : ∀ {κ} {tc : TyCon κ} → (dc : DataCon tc) →
               Expr Σ Γ (weakenType (dcType dc) ⊆-empty)
   lit     : ∀ {τ} → ForeignLit Σ τ → Expr Σ Γ τ
