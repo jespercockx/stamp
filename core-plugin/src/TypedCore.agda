@@ -196,8 +196,7 @@ weakenType (con c)      p = con c
 weakenType (lit l)      p = lit l
 
 weakenCxt : ∀ {Σ₁ Σ₂} → Cxt Σ₁ → Σ₁ ⊆ Σ₂ → Cxt Σ₂
-weakenCxt [] _ = []
-weakenCxt (τ :: τs) p = weakenType τ p :: weakenCxt τs p
+weakenCxt τs p = map (flip weakenType p) τs
 
 shift : ∀ {κ κ′ Σ} → Type Σ κ → Type (κ′ ∷ Σ) κ
 shift τ = weakenType τ (⊆-skip ⊆-refl)
