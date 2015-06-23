@@ -66,7 +66,7 @@ compose-map [] _ _ = refl
 compose-map (x ∷ xs) f g rewrite compose-map xs f g = refl
 
 
-map-≡ : ∀ {A B : Set} {xs : List A} (f g : A → B) →
+map-≡ : ∀ {A B : Set} {xs : List A} → (f g : A → B) →
           (∀ {x} → f x ≡ g x) → map f xs ≡ map g xs
 map-≡ {xs = []} _ _ h = refl
 map-≡ {xs = x ∷ xs} f g h rewrite h {x} | map-≡ {xs = xs} f g h = refl
@@ -150,6 +150,13 @@ infixr 5 _+++_
 _+++_ : ∀ {A : Set} → List A → List A → List A
 [] +++ ys = ys
 (x ∷ xs) +++ ys = xs +++ x ∷ ys
+
+
+map-+++-assoc : ∀ {A B : Set} {xs ys : List A} (f : A → B) →
+                  map f (xs +++ ys) ≡ map f xs +++ map f ys
+map-+++-assoc {xs = []} f = refl
+map-+++-assoc {xs = x ∷ xs} {ys} f = map-+++-assoc {xs = xs} {ys = x ∷ ys} f
+
 
 ∈-+++ : ∀ {A : Set} {x : A} {xs ys : List A} →
           x ∈ (xs +++ ys) → Either (x ∈ xs) (x ∈ ys)
@@ -272,11 +279,29 @@ xs ⊈ ys = ¬ (xs ⊆ ys)
 ⊆-++-swap : ∀ {A : Set} (xs ys : List A) → xs ++ ys ⊆ ys ++ xs
 ⊆-++-swap xs ys = ∈-++-swap {xs = xs} {ys = ys}
 
+⊆-++-prefix : ∀ {A : Set} {xs ys zs : List A} → xs ⊆ ys →
+                zs ++ xs ⊆ zs ++ ys
+⊆-++-prefix {zs = zs} p q with ∈-++ {xs = zs} q
+⊆-++-prefix {zs = zs} p q | left r = ∈-++-prefix r
+⊆-++-prefix {zs = zs} p q | right r = ∈-++-suffix {ys = zs} (p r)
+
+⊆-++-suffix : ∀ {A : Set} {xs ys zs : List A} → xs ⊆ ys →
+                xs ++ zs ⊆ ys ++ zs
+⊆-++-suffix {xs = xs} p q with ∈-++ {xs = xs} q
+⊆-++-suffix p q | left r = ∈-++-prefix (p r)
+⊆-++-suffix {ys = ys} p q | right r = ∈-++-suffix {ys = ys} r
+
 ⊆-+++-prefix : ∀ {A : Set} {xs ys zs : List A} → xs ⊆ ys →
                  zs +++ xs ⊆ zs +++ ys
 ⊆-+++-prefix {zs = zs} p q with ∈-+++ {xs = zs} q
 ⊆-+++-prefix {zs = zs} p q | left r = ∈-+++-prefix r
 ⊆-+++-prefix {zs = zs} p q | right r = ∈-+++-suffix {ys = zs} (p r)
+
+⊆-+++-suffix : ∀ {A : Set} {xs ys zs : List A} → xs ⊆ ys →
+                 xs +++ zs ⊆ ys +++ zs
+⊆-+++-suffix {xs = xs} p q with ∈-+++ {xs = xs} q
+⊆-+++-suffix p q | left r = ∈-+++-prefix (p r)
+⊆-+++-suffix {ys = ys} p q | right r = ∈-+++-suffix {ys = ys} r
 
 ⊆-cons-middle : ∀ {A : Set} {x : A} {xs ys : List A} →
                   xs ++ (x ∷ ys) ⊆ (x ∷ xs) ++ ys
