@@ -6,6 +6,7 @@ open import Control.Monad.Trans public
 open import Control.Monad.State hiding (lift) public
 open import Data.Int public
 open import Data.List using (All; _∷_; []) public
+open import Tactic.Deriving.Eq
 
 
 module Exists where
@@ -84,6 +85,13 @@ cons-middle-snoc (x ∷ xs′) ys = cong (λ zs → x ∷ zs) (cons-middle-snoc 
 data _∈_ {A : Set} (x : A) : List A → Set where
   hd : ∀ {xs}            → x ∈ (x ∷ xs)
   tl : ∀ {y xs} → x ∈ xs → x ∈ (y ∷ xs)
+
+instance
+  Eq_∈_ : ∀ {A : Set} {x : A} {xs : List A} → Eq (x ∈ xs)
+  Eq_∈_ = record { _==_ = eq }
+    where
+      eq : ∀ {A : Set} {x : A} {xs : List A} → (p q : x ∈ xs) → Dec (p ≡ q)
+      unquoteDef eq = deriveEqDef (quote _∈_)
 
 
 tl-inj : ∀ {A : Set} {x y : A} {xs : List A} {p q : x ∈ xs} →
@@ -242,79 +250,83 @@ reverse (x ∷ xs) = reverse xs ++ [ x ]
 
 infix 4 _⊆_
 
-_⊆_ : ∀ {A : Set} → List A → List A → Set
-xs ⊆ ys = ∀ {x} → x ∈ xs → x ∈ ys
+_⊆_ : ∀ {A : Set} → (xs ys : List A) → Set
+[] ⊆ _ = ⊤
+x ∷ xs ⊆ ys = (x ∈ ys) × (xs ⊆ ys)
 
 _⊈_ : ∀ {A : Set} → List A → List A → Set
 xs ⊈ ys = ¬ (xs ⊆ ys)
 
-⊆-refl : ∀ {A : Set} {xs : List A} → xs ⊆ xs
-⊆-refl = id
+∈-over-⊆ : ∀ {A : Set} {xs ys : List A} → xs ⊆ ys → ∀ {x} → x ∈ xs → x ∈ ys
+∈-over-⊆ (p₁ , p₂) hd = p₁
+∈-over-⊆ (p₁ , p₂) (tl q) = ∈-over-⊆ p₂ q
 
-⊆-empty : ∀ {A : Set} {xs : List A} → [] ⊆ xs
-⊆-empty ()
-
-⊆-empty-⊥ : ∀ {A : Set} {x : A} {xs : List A} → x ∷ xs ⊆ [] → ⊥
-⊆-empty-⊥ p with p hd
-⊆-empty-⊥ p | ()
-
-⊆-swap : ∀ {A : Set} {x y : A} {xs : List A} → (x ∷ y ∷ xs) ⊆ (y ∷ x ∷ xs)
-⊆-swap hd = tl hd
-⊆-swap (tl hd) = hd
-⊆-swap (tl (tl p)) = tl (tl p)
+⊆-over-∈ : ∀ {A : Set} {xs ys : List A} →
+             (∀ {x} → x ∈ xs → x ∈ ys) →
+             xs ⊆ ys
+⊆-over-∈ {xs = []} f = tt
+⊆-over-∈ {xs = _ ∷ xs} f = (f hd) , (⊆-over-∈ (λ p → f (tl p)))
 
 ⊆-skip : ∀ {A : Set} {x : A} {xs ys : List A} → xs ⊆ ys → xs ⊆ (x ∷ ys)
-⊆-skip p q = tl (p q)
+⊆-skip {xs = []} p = tt
+⊆-skip {xs = x₁ ∷ xs} (p , q) = (tl p) , (⊆-skip q)
+
+⊆-refl : ∀ {A : Set} {xs : List A} → xs ⊆ xs
+⊆-refl {xs = []} = tt
+⊆-refl {xs = x ∷ xs} = hd , ⊆-skip ⊆-refl
+
+⊆-empty : ∀ {A : Set} {xs : List A} → [] ⊆ xs
+⊆-empty = tt
+
+⊆-empty-⊥ : ∀ {A : Set} {x : A} {xs : List A} → x ∷ xs ⊆ [] → ⊥
+⊆-empty-⊥ (() , _)
+
+⊆-swap : ∀ {A : Set} {x y : A} {xs : List A} → (x ∷ y ∷ xs) ⊆ (y ∷ x ∷ xs)
+⊆-swap = tl hd , hd , (⊆-skip (⊆-skip ⊆-refl))
 
 ⊆-keep : ∀ {A : Set} {x : A} {xs ys : List A} → xs ⊆ ys → (x ∷ xs) ⊆ (x ∷ ys)
-⊆-keep p hd = hd
-⊆-keep p (tl q) = tl (p q)
+⊆-keep p = hd , (⊆-skip p)
+
+-- ⊆-trans : ∀ {A : Set} {xs ys zs : List A} → xs ⊆ ys → ys ⊆ zs → xs ⊆ zs
+-- ⊆-trans p q = ⊆-over-∈ (∈-over-⊆ q ∘ ∈-over-⊆ p)
 
 ⊆-trans : ∀ {A : Set} {xs ys zs : List A} → xs ⊆ ys → ys ⊆ zs → xs ⊆ zs
-⊆-trans p q = λ {x} z → q (p z)
-
-∈-over-⊆ : ∀ {A : Set} {x : A} {xs ys : List A} → xs ⊆ ys → x ∈ xs → x ∈ ys
-∈-over-⊆ p q = p q
+⊆-trans {xs = []} {[]} p tt = tt
+⊆-trans {xs = x ∷ xs} {[]} (() , _) tt
+⊆-trans {xs = []} {y ∷ ys} p q = tt
+⊆-trans {xs = _ ∷ _} {._ ∷ _} (hd , p₂) (q₁ , q₂)
+  = q₁ , ⊆-trans p₂ (q₁ , q₂)
+⊆-trans {xs = _ ∷ _′} {_ ∷ _} (tl p₁ , p₂) (q₁ , q₂)
+  = (∈-over-⊆ q₂ p₁) , ⊆-trans p₂ (q₁ , q₂)
 
 ⊆-++-swap : ∀ {A : Set} (xs ys : List A) → xs ++ ys ⊆ ys ++ xs
-⊆-++-swap xs ys = ∈-++-swap {xs = xs} {ys = ys}
+⊆-++-swap xs ys = ⊆-over-∈ (∈-++-swap {xs = xs} {ys = ys})
 
 ⊆-++-prefix : ∀ {A : Set} {xs ys zs : List A} → xs ⊆ ys →
                 zs ++ xs ⊆ zs ++ ys
-⊆-++-prefix {zs = zs} p q with ∈-++ {xs = zs} q
-⊆-++-prefix {zs = zs} p q | left r = ∈-++-prefix r
-⊆-++-prefix {zs = zs} p q | right r = ∈-++-suffix {ys = zs} (p r)
-
-⊆-++-suffix : ∀ {A : Set} {xs ys zs : List A} → xs ⊆ ys →
-                xs ++ zs ⊆ ys ++ zs
-⊆-++-suffix {xs = xs} p q with ∈-++ {xs = xs} q
-⊆-++-suffix p q | left r = ∈-++-prefix (p r)
-⊆-++-suffix {ys = ys} p q | right r = ∈-++-suffix {ys = ys} r
+⊆-++-prefix {zs = []} p = p
+⊆-++-prefix {zs = z ∷ zs} p = hd , ⊆-skip (⊆-++-prefix {zs = zs} p)
 
 ⊆-+++-prefix : ∀ {A : Set} {xs ys zs : List A} → xs ⊆ ys →
                  zs +++ xs ⊆ zs +++ ys
-⊆-+++-prefix {zs = zs} p q with ∈-+++ {xs = zs} q
-⊆-+++-prefix {zs = zs} p q | left r = ∈-+++-prefix r
-⊆-+++-prefix {zs = zs} p q | right r = ∈-+++-suffix {ys = zs} (p r)
+⊆-+++-prefix {zs = []} p = p
+⊆-+++-prefix {zs = z ∷ zs} p = ⊆-+++-prefix {zs = zs} (⊆-keep p)
 
 ⊆-+++-suffix : ∀ {A : Set} {xs ys zs : List A} → xs ⊆ ys →
                  xs +++ zs ⊆ ys +++ zs
-⊆-+++-suffix {xs = xs} p q with ∈-+++ {xs = xs} q
-⊆-+++-suffix p q | left r = ∈-+++-prefix (p r)
-⊆-+++-suffix {ys = ys} p q | right r = ∈-+++-suffix {ys = ys} r
-
-⊆-cons-middle : ∀ {A : Set} {x : A} {xs ys : List A} →
-                  xs ++ (x ∷ ys) ⊆ (x ∷ xs) ++ ys
-⊆-cons-middle {_} {x} {xs} {ys} p with ∈-++ {xs = xs} {ys = x ∷ ys} p
-⊆-cons-middle {x = x₁} {xs = xs} _ | left  q = ∈-++′ {xs = x₁ ∷ xs} (left (tl q))
-⊆-cons-middle _ | right hd = hd
-⊆-cons-middle {x = x} {xs = xs} _ | right (tl q) = ∈-++′ {xs = x ∷ xs} (right q)
+⊆-+++-suffix p = ⊆-over-∈ (⊆-+++-suffix′ (∈-over-⊆ p))
+  where
+    ⊆-+++-suffix′ : ∀ {A : Set} {xs ys zs : List A} →
+                      (∀ {x} → x ∈ xs → x ∈ ys) →
+                      (∀ {x} → x ∈ (xs +++ zs) → x ∈ (ys +++ zs))
+    ⊆-+++-suffix′ {xs = xs} p q with ∈-+++ {xs = xs} q
+    ⊆-+++-suffix′ p q | left r = ∈-+++-prefix (p r)
+    ⊆-+++-suffix′ {ys = ys} p q | right r = ∈-+++-suffix {ys = ys} r
 
 ⊆-map-inj : ∀ {A B : Set} {xs ys : List A} {f : A → B} →
               xs ⊆ ys → map f xs ⊆ map f ys
-⊆-map-inj {xs = []} p ()
-⊆-map-inj {xs = x ∷ xs} p hd = ∈-map-inj (p hd)
-⊆-map-inj {xs = x ∷ xs} p (tl q) = ⊆-map-inj (λ z → p (tl z)) q
+⊆-map-inj {xs = []} p = tt
+⊆-map-inj {xs = x ∷ xs} (p₁ , p₂) = (∈-map-inj p₁) , (⊆-map-inj p₂)
 
 
 allFin : (n : Nat) → List (Fin n)
@@ -326,3 +338,9 @@ Fin∈allFin : ∀ {n : Nat} → (i : Fin n) → i ∈ allFin n
 Fin∈allFin {zero} ()
 Fin∈allFin {suc n} zero = hd
 Fin∈allFin {suc n} (suc i) = tl (∈-map-inj (Fin∈allFin i))
+
+
+
+cong-× : ∀ {A B : Set} {a₁ a₂ : A} {b₁ b₂ : B} → a₁ ≡ a₂ → b₁ ≡ b₂ →
+           (a₁ , b₁) ≡ (a₂ , b₂)
+cong-× refl refl = refl

@@ -12,9 +12,8 @@ open import TypedCore
 
 ⊆-weakenCxt : ∀ {Σ₁ Σ₂} {Γ₁ Γ₂ : Cxt Σ₁} → Γ₁ ⊆ Γ₂ → (p : Σ₁ ⊆ Σ₂) →
                 weakenCxt Γ₁ p ⊆ weakenCxt Γ₂ p
-⊆-weakenCxt {Γ₁ = []}     q p ()
-⊆-weakenCxt {Γ₁ = _ ∷ Γ₁} q p hd     = ∈-weakenCxt (q hd) p
-⊆-weakenCxt {Γ₁ = _ ∷ Γ₁} q p (tl r) = ⊆-weakenCxt (q ∘ tl) p r
+⊆-weakenCxt {Γ₁ = []} q p = tt
+⊆-weakenCxt {Γ₁ = _ ∷ Γ₁} (q₁ , q₂) p = (∈-weakenCxt q₁ p) , (⊆-weakenCxt q₂ p)
 
 
 
@@ -60,7 +59,7 @@ weakenInCxt-Branch-Exhaustive {adt = Adt ftc n cs} {τ = τ} p bs ex
 
 
 
-weakenInCxt (var i) p = var (p i)
+weakenInCxt (var i) p = var (∈-over-⊆ p i)
 weakenInCxt (e₁ $ e₂) p = weakenInCxt e₁ p $ weakenInCxt e₂ p
 weakenInCxt (e [ τ ]) p = weakenInCxt e p [ τ ]
 weakenInCxt (lam τ e) p = lam τ (weakenInCxt e (⊆-keep p))

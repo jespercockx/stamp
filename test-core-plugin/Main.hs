@@ -8,7 +8,8 @@ agda = error "Compiler plugin did not run correctly"
 
 main :: IO ()
 main = do
-  putStrLn $ show $ Pair True 'x' `eqPair` Pair True 'x'
+  putStrLn "Hello World"
+  -- putStrLn $ show $ Pair True 'x' `eqPair` Pair True 'x'
   -- putStrLn $ "Barry `eqFoo` Barry: " ++ show (Barry `eqFoo` Barry)
   -- putStrLn $ "Barry `eqFoo` Bar True: " ++ show (Barry `eqFoo` Bar True)
   -- putStrLn $ "Bar True `eqFoo` Bar True: " ++ show (Bar True `eqFoo` Bar True)
@@ -44,8 +45,14 @@ main = do
 
 
 
-eqPair :: (Eq a, Eq b) => Pair a b -> Pair a b -> Bool
-eqPair = agda
+-- eqPair :: (Eq a, Eq b) => Pair a b -> Pair a b -> Bool
+-- eqPair = agda
 -- eqPair p1 p2 = case p1 of
 --   Pair a1 b1 -> case p2 of
 --     Pair a2 b2 -> a1 == a2 && b1 == b2
+
+
+aBool :: Functor f => (Bool -> f Bool) -> ARecord a -> f (ARecord a)
+aBool = agda
+-- aBool f a
+--   = ((\ x_a2vu -> a {_aBool = x_a2vu}) `fmap` (f (_aBool a)))

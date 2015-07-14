@@ -82,7 +82,7 @@ saturatedTyCxt = satTyCxt ∘ saturate
 
 
 satTyCxt-⊆ : ∀ {κ κₛ} → (sat : Saturates κₛ) → satTyCxt sat ⊆ satTyCxt (κ ∷ sat)
-satTyCxt-⊆ sat p = ∈-suffix p
+satTyCxt-⊆ sat = ⊆-over-∈ ∈-suffix
 
 data ForeignTyCon : Set where
   fcon : Module → Ident → ForeignTyCon
@@ -227,18 +227,8 @@ Adt-inj₃ : ∀ {κ} {ftc₁ ftc₂} {n} {cs₁ cs₂} →
              Adt {κ} ftc₁ n cs₁ ≡ Adt {κ} ftc₂ n cs₂ → cs₁ ≡ cs₂
 Adt-inj₃ refl = refl
 
-instance
-  -- {{Eq A}} gives problems when generating the code
-  Eq_∈_ : ∀ {A : Set} {x : A} {xs : List A} {{e : Eq A}} → Eq (x ∈ xs)
-  Eq_∈_ {{EqA}} = record { _==_ = eq {{EqA}} }
-    where
-      eq : ∀ {A : Set} {x : A} {xs : List A} {{e : Eq A}} →
-             (p₁ p₂ : x ∈ xs) → Dec (p₁ ≡ p₂)
-      eq hd hd = yes refl
-      eq hd (tl _) = no (λ ())
-      eq (tl _) hd = no (λ ())
-      eq (tl p₁) (tl p₂) = decEq₁ tl-inj (eq p₁ p₂)
 
+instance
   -- Avoid TERMINATING pragma by writing out the pattern matching
   EqKind : Eq Kind
   EqKind = record { _==_ = eq }
@@ -325,7 +315,7 @@ applyTyArgs {Σ} {κ = κ ⇒ κ₁} τ τs with lastAll τs
 
 Types-Σ : ∀ Σ → Types Σ Σ
 Types-Σ [] = []
-Types-Σ (κ ∷ Σ) = tvar hd ∷ weakenTypes (Types-Σ Σ) tl
+Types-Σ (κ ∷ Σ) = tvar hd ∷ weakenTypes (Types-Σ Σ) (⊆-skip ⊆-refl)
 
 
 tyConType tc = applyTyArgs (con tc) (Types-Σ (tyConCxt tc))
@@ -348,7 +338,7 @@ data Expr (Σ : TyCxt) (Γ : Cxt Σ) : Type Σ ∗ → Set where
   Λ       : ∀ κ {τ} → Expr (κ ∷ Σ) (weakenCxt Γ (⊆-skip ⊆-refl)) τ →
               Expr Σ Γ (forAll κ τ)
   con     : ∀ {κ} {tc : TyCon κ} → (dc : DataCon tc) →
-              Expr Σ Γ (weakenType (dcType dc) ⊆-empty)
+              Expr Σ Γ (weakenType (dcType dc) tt)
   lit     : ∀ {τ} → ForeignLit Σ τ → Expr Σ Γ τ
   fvar    : ∀ {τ} → ForeignVar Σ τ → Expr Σ Γ τ
   fdict   : ∀ {τ} → ForeignDict Σ τ → Expr Σ Γ τ -- TODO Constraint kind?
@@ -373,7 +363,7 @@ substTyArgs : ∀ {κ Σ Σ′} → Types Σ′ Σ →
 substTyArgs τs (tvar n)     = substTyArg n τs
 substTyArgs τs (τ₁ $ τ₂)    = substTyArgs τs τ₁ $ substTyArgs τs τ₂
 substTyArgs τs (τ₁ ⇒ τ₂)    = substTyArgs τs τ₁ ⇒ substTyArgs τs τ₂
-substTyArgs τs (forAll κ τ) = forAll κ (substTyArgs (tvar hd ∷ weakenTypes τs tl) τ)
+substTyArgs τs (forAll κ τ) = forAll κ (substTyArgs (tvar hd ∷ weakenTypes τs (⊆-skip ⊆-refl)) τ)
 substTyArgs τs (con c)      = con c
 substTyArgs τs (lit l)      = lit l
 

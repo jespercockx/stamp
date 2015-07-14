@@ -116,14 +116,15 @@ compareArgs {κ} {adt} (τ ∷ binders) τs p
            findDict {κ} {adt} {binders} {τs} τ (∈-over-⊆ p hd) $
             var (firstBinder {xs = binders} {ys = τs}) $
             var (secondBinder {xs = binders} {ys = τs}))
-         $ compareArgs {adt = adt} binders (τ ∷ τs) (⊆-trans (⊆-skip id) p)
+         $ compareArgs {adt = adt} binders (τ ∷ τs)
+                       (⊆-trans (⊆-skip ⊆-refl) p)
 
 
 ⊆-p : ∀ {κ} → (adt : ADT κ) → (dc : DataCon (adtTyCon adt)) →
         patBinders {tyArgs = Types-Σ (ADT.tyCxt adt)} (con dc)
         ⊆ typesInConstructors adt
 ⊆-p adt (con ._ i)
-  = ⊆-map-inj (λ p → ∈-concatMap p (∈-map-inj (Fin∈allFin i)))
+  = ⊆-map-inj (⊆-over-∈ (λ p → ∈-concatMap p (∈-map-inj (Fin∈allFin i))))
 
 makeNestedBranch : ∀ {κ} {adt : ADT κ} {{eqs : RequiredEqAtCompileTime adt}} →
                      (dc dc′ : DataCon (adtTyCon adt)) →

@@ -7,6 +7,10 @@ open import HelloWorld using (`Char`)
 -- TODO move these to a better location
 open import DeriveEq using (mkΛ; mkLam; mkFun)
 
+-- postulate
+--   weakenExpr : ∀ {Σ₁ Σ₂ Γ} {τ₁ : Type Σ₁ ∗} → Expr Σ₁ Γ τ₁ → (p : Σ₁ ⊆ Σ₂) →
+--                  Expr Σ₂ (weakenCxt Γ p) (weakenType τ₁ p)
+
 `Functor` : TyCon ((∗ ⇒ ∗) ⇒ ∗)
 `Functor` = con (makeADT (fcon "GHC.Base" "Functor") [])
 
@@ -26,9 +30,10 @@ open import DeriveEq using (mkΛ; mkLam; mkFun)
 `Lens` : ∀ {Σ} → (a b : Type Σ ∗) → Type Σ ∗
 `Lens` a b = forAll (∗ ⇒ ∗)
                     ((con `Functor` $ tvar hd) ⇒
-                     (weakenType b tl ⇒ tvar hd $ weakenType b tl) ⇒
-                      weakenType a tl ⇒ tvar hd $ weakenType a tl)
-
+                     (weakenType b (⊆-skip ⊆-refl) ⇒
+                      tvar hd $ weakenType b (⊆-skip ⊆-refl)) ⇒
+                     weakenType a (⊆-skip ⊆-refl) ⇒
+                     tvar hd $ weakenType a (⊆-skip ⊆-refl))
 
 
 -- data ARecord a
@@ -50,6 +55,7 @@ ARecordADT = makeADT (fcon "Data" "ARecord")
 
 `aRecord` : DataCon `ARecord`
 `aRecord` = con ARecordADT zero
+
 
 
 -- aBool f a
@@ -102,6 +108,7 @@ ARecordADT = makeADT (fcon "Data" "ARecord")
                      (var (tl (tl hd))) ∷ [])
                 refl))))))
 
+
 SingleConstructor : ∀ {κ} → ADT κ → Set
 SingleConstructor adt = ADT.nbConstructors adt ≡ 1
 
@@ -112,6 +119,7 @@ singleConstructor (Adt _ .1 (c ∷ [])) refl = c
 singleDataCon : ∀ {κ} → (adt : ADT κ) → SingleConstructor adt →
                   DataCon (adtTyCon adt)
 singleDataCon (Adt ftc .1 (c ∷ [])) refl = con (Adt ftc 1 (c ∷ [])) zero
+
 
 
 singleDataConADT : ∀ {κ} → (adt : ADT κ) → (single : SingleConstructor adt) →
@@ -128,23 +136,11 @@ singleDataConExhaustive :
     Exhaustive (alt (con (singleDataCon adt single)) e ∷ [])
 singleDataConExhaustive (Adt _ .1 (c ∷ [])) refl tyArgs = refl
 
-weakenType-applyTyArgs :
-  ∀ {κ κ′} → (adt : ADT κ) →
-    applyTyArgs (con (adtTyCon adt))
-                (weakenTypes {Σ₂ = κ′ ∷ _} (Types-Σ (ADT.tyCxt adt)) tl)
-    ≡ weakenType
-      (applyTyArgs (con (adtTyCon adt))
-                   (Types-Σ (ADT.tyCxt adt))) tl
-weakenType-applyTyArgs adt = {!!}
--- weakenType-applyTyArgs {∗} adt = refl
--- weakenType-applyTyArgs {κ ⇒ κ₁} adt with Types-Σ (ADT.tyCxt adt)
--- ... | τs with lastAll {xs = satTyCxt (saturate κ₁)} {x = κ} τs
--- ... | all , τ with lastAll (weakenTypes τs) -- lastAll {xs = satTyCxt (saturate κ₁)} {x = κ} (weakenTypes {κ = κ} τs)
--- ... | wAll , wτ = {!!}
 
 
 ∈-≡ : ∀ {A : Set} {x y : A} {xs : List A} → x ∈ (x ∷ xs) → x ≡ y → y ∈ (x ∷ xs)
 ∈-≡ p refl = p
+
 
 -- dcType2 : ∀ {κ} {tc : TyCon κ} → DataCon tc → Type (satTyCxt (saturate κ)) ∗
 -- dcType2 {κ} dc = mkFunRev (dataConArgs dc) (tyConType (con adt))
@@ -154,37 +150,13 @@ weakenType-applyTyArgs adt = {!!}
 
 
 
--- Goal: (patBinders (weakenPat pat p) +++ weakenCxt Γ p)
--- Have: (weakenCxt (patBinders pat +++ Γ) p)
-
-
-
-weakenCxt-map-substTyArgs :
-  ∀ {Σ₁ Σ₂ κ} {adt : ADT κ} {tyArgs : Types Σ₁ (ADT.tyCxt adt)}
-    (p : Σ₁ ⊆ Σ₂) → (dc : DataCon (adtTyCon adt)) →
-    weakenCxt (map (substTyArgs tyArgs) (dataConArgs dc)) p ≡
-    map (substTyArgs (weakenTypes tyArgs p)) (dataConArgs dc)
-weakenCxt-map-substTyArgs {κ = ∗} {tyArgs = []} p dc = {!!}
-weakenCxt-map-substTyArgs {κ = κ ⇒ κ₁} {Adt _ _ _} {tyArgs} p dc = {!!}
-
-weakenCxt-patBinders :
-  ∀ {Σ₁ Σ₂ κ} {adt : ADT κ} {tyArgs : Types Σ₁ (ADT.tyCxt adt)}
-    (p : Σ₁ ⊆ Σ₂) → (pat : Pat Σ₁ {κ} adt tyArgs) →
-    weakenCxt (patBinders pat) p ≡ patBinders (weakenPat pat p)
-weakenCxt-patBinders p ̺ = refl
-weakenCxt-patBinders p (lit x) = refl
-weakenCxt-patBinders p (con dc) = weakenCxt-map-substTyArgs p dc
-
-
-
-
-
 
 -- [_]ADT : ∀ {κ} {adt : ADT κ} {Σ} {Γ : Cxt Σ}
 --            {τ : Type (ADT.tyCxt adt +++ Σ) ∗} →
 --            Expr Σ Γ (mkForAll+++ (ADT.tyCxt adt) τ) →
 --            Expr (satTyCxt (saturate κ)) (weakenCxt Γ ?) τ
 -- [_]ADT e = {!!}
+
 
 
 
@@ -257,24 +229,30 @@ weakenCxt-patBinders p (con dc) = weakenCxt-map-substTyArgs p dc
 ∈-skip-adt adt = ∈-++-suffix {ys = ADT.tyCxt adt} hd
 
 
+mkForAll++ : ∀ (Σ₁ : TyCxt) {Σ₂ : TyCxt} → Type (Σ₁ ++ Σ₂) ∗ → Type Σ₂ ∗
+mkForAll++ []       τ = τ
+mkForAll++ (κ ∷ Σ₁) τ = mkForAll++ Σ₁ (forAll κ τ)
+
+
+
 mkΛ++ : ∀ (Σ₁ : TyCxt) {Σ₂ : TyCxt} {τ : Type (Σ₁ ++ Σ₂) ∗} →
           Expr (Σ₁ ++ Σ₂) [] τ → Expr Σ₂ [] (mkForAll++ Σ₁ τ)
 mkΛ++ []      e = e
 mkΛ++ (κ ∷ Σ) e = mkΛ++ Σ (Λ κ e)
 
 
+
 Types-Σ′ : ∀ Σ Σ′ → (p : Σ ⊆ Σ′) → Types Σ′ Σ
-Types-Σ′ []      _  _ = []
-Types-Σ′ (κ ∷ Σ) Σ′ p = tvar (p hd) ∷ weakenTypes (Types-Σ′ Σ Σ′ (p ∘ tl)) id
-
-
+Types-Σ′ []      _  _         = []
+Types-Σ′ (κ ∷ Σ) Σ′ (p₁ , p₂) = tvar p₁ ∷ weakenTypes (Types-Σ′ Σ Σ′ p₂) ⊆-refl
 
 
 -- case a of _ { ARecord x y z -> x }
 getField : ∀ {κ} {adt : ADT κ} {Γ : Cxt (ADT.tyCxt adt)} →
              (single : SingleConstructor adt) →
              (fld : Type (ADT.tyCxt adt) ∗) →
-             fld ∈ patBinders {tyArgs = Types-Σ (ADT.tyCxt adt)} (con (singleDataCon adt single))  →
+             fld ∈ patBinders {tyArgs = Types-Σ (ADT.tyCxt adt)}
+                              (con (singleDataCon adt single))  →
              Expr (ADT.tyCxt adt) Γ (tyConType (adtTyCon adt)) →
              Expr (ADT.tyCxt adt) Γ fld
 getField {κ} {Adt ftc .1 (c ∷ [])} refl fld fld∈ e
@@ -283,20 +261,20 @@ getField {κ} {Adt ftc .1 (c ∷ [])} refl fld fld∈ e
                (var (∈-+++-prefix fld∈)) ∷ [])
           refl
 
-
-
 applyDCTyArgs : ∀ {κ} {adt : ADT κ} {Γ : Cxt (ADT.tyCxt adt)} →
                   (dc : DataCon (adtTyCon adt)) →
                   Expr (ADT.tyCxt adt) Γ
                        (weakenType
                         (mkForAll (ADT.tyCxt adt)
-                                   (mkFunRev (dataConArgs dc)
-                                             (tyConType (con adt))))
-                                             ⊆-empty) →
+                                  (mkFunRev (dataConArgs dc)
+                                            (tyConType (con adt))))
+                                            tt) →
                   Expr (ADT.tyCxt adt) Γ
                        (mkFunRev (dataConArgs dc)
                                  (tyConType (con adt)))
 applyDCTyArgs = {!!}
+
+
 
 applyDCFunArgs : ∀ {κ} {adt : ADT κ} {Γ : Cxt (ADT.tyCxt adt)} →
                   (dc : DataCon (adtTyCon adt)) →
@@ -307,11 +285,13 @@ applyDCFunArgs : ∀ {κ} {adt : ADT κ} {Γ : Cxt (ADT.tyCxt adt)} →
 applyDCFunArgs = {!!}
 
 
+
 -- case a of _ { ARecord x y z -> ARecord @ a x repl z }
 setField : ∀ {κ} {adt : ADT κ} {Γ : Cxt (ADT.tyCxt adt)} →
              (single : SingleConstructor adt) →
              (fld : Type (ADT.tyCxt adt) ∗) →
-             fld ∈ patBinders {tyArgs = Types-Σ (ADT.tyCxt adt)} (con (singleDataCon adt single))  →
+             fld ∈ patBinders {tyArgs = Types-Σ (ADT.tyCxt adt)}
+                              (con (singleDataCon adt single)) →
              Expr (ADT.tyCxt adt) Γ (tyConType (adtTyCon adt)) →
              Expr (ADT.tyCxt adt) Γ (tyConType (adtTyCon adt))
 setField {κ} {Adt ftc .1 (c ∷ [])} refl fld fld∈ e
@@ -325,6 +305,7 @@ setField {κ} {Adt ftc .1 (c ∷ [])} refl fld fld∈ e
 -- (applyDCFunArgs {!con adt zero!} (applyDCTyArgs {!!} {!!}))
 
 
+
 makeLensForField :
   ∀ {κ} {adt : ADT κ} → (flds : Cxt (ADT.tyCxt adt)) →
     (fld : Type (ADT.tyCxt adt) ∗) → fld ∈ flds →
@@ -333,27 +314,43 @@ makeLensForField :
          (forAll (∗ ⇒ ∗)
          (mkForAll++ (ADT.tyCxt adt)
          ((con `Functor` $ tvar (∈-skip-adt adt)) ⇒
-          (weakenType fld ∈-++-prefix ⇒
-           tvar (∈-skip-adt adt) $ weakenType fld ∈-++-prefix) ⇒
-          weakenType (tyConType (adtTyCon adt)) ∈-++-prefix  ⇒
-          tvar (∈-skip-adt adt) $ weakenType (tyConType (adtTyCon adt)) ∈-++-prefix)))
+         weakenType fld {!!} ⇒ {!!})))
 makeLensForField {κ} {adt} flds fld p single
-  = Λ (∗ ⇒ ∗)
-      (mkΛ++ (ADT.tyCxt adt)
-      (lam (con `Functor` $ tvar (∈-skip-adt adt))
-      (lam (weakenType fld ∈-++-prefix ⇒
-            tvar (∈-skip-adt adt) $ weakenType fld ∈-++-prefix)
-      (lam (weakenType (tyConType (adtTyCon adt)) ∈-++-prefix)
-      ((`fmap` [ tvar (∈-skip-adt adt) ] [ weakenType fld ∈-++-prefix ]
-               [ weakenType (tyConType (adtTyCon adt)) ∈-++-prefix ] $
-        var (tl (tl hd)) $
-        lam (substTop (weakenType (tyConType (adtTyCon adt)) ∈-++-prefix)
-                      (weakenType (weakenType fld ∈-++-prefix) (⊆-skip ⊆-refl)))
-            (match adt (Types-Σ′ (ADT.tyCxt adt) _ ∈-++-prefix)
-                   {!!} {!!} {!!}) $
-        (var {!!} $ {!!})))))))
+  = Λ (∗ ⇒ ∗) {!!}
 
-               -- (singleDataConExhaustive adt single (Types-Σ (ADT.tyCxt adt))))))))))
+
+
+-- makeLensForField :
+--   ∀ {κ} {adt : ADT κ} → (flds : Cxt (ADT.tyCxt adt)) →
+--     (fld : Type (ADT.tyCxt adt) ∗) → fld ∈ flds →
+--     SingleConstructor adt →
+--     Expr [] []
+--          (forAll (∗ ⇒ ∗)
+--          (mkForAll++ (ADT.tyCxt adt)
+--          ((con `Functor` $ tvar (∈-skip-adt adt)) ⇒
+--           (weakenType fld ∈-++-prefix ⇒
+--            tvar (∈-skip-adt adt) $ weakenType fld ∈-++-prefix) ⇒
+--           weakenType (tyConType (adtTyCon adt)) ∈-++-prefix  ⇒
+--           tvar (∈-skip-adt adt) $ weakenType (tyConType (adtTyCon adt)) ∈-++-prefix)))
+-- makeLensForField {κ} {adt} flds fld p single
+--   = Λ (∗ ⇒ ∗)
+--       (mkΛ++ (ADT.tyCxt adt)
+--       (lam (con `Functor` $ tvar (∈-skip-adt adt))
+--       (lam (weakenType fld ∈-++-prefix ⇒
+--             tvar (∈-skip-adt adt) $ weakenType fld ∈-++-prefix)
+--       (lam (weakenType (tyConType (adtTyCon adt)) ∈-++-prefix)
+--       ((`fmap` [ tvar (∈-skip-adt adt) ] [ weakenType fld ∈-++-prefix ]
+--                [ weakenType (tyConType (adtTyCon adt)) ∈-++-prefix ] $
+--         var (tl (tl hd)) $
+--         lam (substTop (weakenType (tyConType (adtTyCon adt)) ∈-++-prefix)
+--                       (weakenType (weakenType fld ∈-++-prefix) (⊆-skip ⊆-refl)))
+--             (match adt (Types-Σ′ (ADT.tyCxt adt) _ ∈-++-prefix)
+--                    {!!} {!!} {!!}) $
+--         (var {!!} $ {!!})))))))
+
+{-
+
+-- (singleDataConExhaustive adt single (Types-Σ (ADT.tyCxt adt))))))))))
 
 -- singleDataConExhaustive :
 --   ∀ {κ} → (adt : ADT κ) → (single : SingleConstructor adt) →
@@ -405,3 +402,4 @@ deriveLenses : ∀ {κ} → (adt : ADT κ) → (single : SingleConstructor adt) 
                                       (`Lens` (tyConType (adtTyCon adt)) τ)))
                    (snd (singleConstructor adt single))
 deriveLenses adt single = {!!}
+-}
