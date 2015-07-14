@@ -126,6 +126,17 @@ compareArgs {κ} {adt} (τ ∷ binders) τs p
 ⊆-p adt (con ._ i)
   = ⊆-map-inj (⊆-over-∈ (λ p → ∈-concatMap p (∈-map-inj (Fin∈allFin i))))
 
+makeNestedBranchRHS : ∀ {κ} {adt : ADT κ} {{eqs : RequiredEqAtCompileTime adt}} →
+                     (dc dc′ : DataCon (adtTyCon adt)) →
+                     Expr (ADT.tyCxt adt)
+                          (patBinders (con dc′) +++ patBinders (con dc) +++
+                          tyConType (adtTyCon adt) ∷ tyConType (adtTyCon adt) ∷
+                          RequiredEqAtRunTime adt) (con `Bool`)
+makeNestedBranchRHS {adt = adt} dc dc′ with dc == dc′
+makeNestedBranchRHS {adt = adt} dc dc′ | no ¬eq = con `False`
+makeNestedBranchRHS {adt = adt} dc .dc | yes refl =
+  compareArgs {adt = adt} (patBinders (con dc)) [] (⊆-p adt dc)
+
 makeNestedBranch : ∀ {κ} {adt : ADT κ} {{eqs : RequiredEqAtCompileTime adt}} →
                      (dc dc′ : DataCon (adtTyCon adt)) →
                      Branch (ADT.tyCxt adt)
@@ -135,12 +146,7 @@ makeNestedBranch : ∀ {κ} {adt : ADT κ} {{eqs : RequiredEqAtCompileTime adt}}
                             tyConType (adtTyCon adt) ∷
                             RequiredEqAtRunTime adt)
                             adt (Types-Σ (ADT.tyCxt adt)) (con `Bool`)
-makeNestedBranch {_} {adt} dc dc′ with dc == dc′
-... | no ¬eq = alt (con dc′) (con `False`)
-... | yes eq = alt (con dc)
-                   (compareArgs {adt = adt}
-                                (patBinders (con dc)) [] (⊆-p adt dc))
-
+makeNestedBranch dc dc′ = alt (con dc′) (makeNestedBranchRHS dc dc′)
 
 makeNestedBranchExhaustive :
   ∀ {κ} {adt : ADT κ} {{eqs : RequiredEqAtCompileTime adt}} →
@@ -152,26 +158,7 @@ makeNestedBranchExhaustive {_} {adt} {{eqs}} dc rewrite
   compose-map (allFin (ADT.nbConstructors adt))
               (makeNestedBranch dc ∘ con adt)
               branchConstructorIndex
-  = rewrite-∘-in-map dc _
-  where
-    bci-NestedBranch : ∀ {κ} {adt : ADT κ} {dc dc′ : DataCon (adtTyCon adt)}
-                         {{eqs : RequiredEqAtCompileTime adt}} →
-                         branchConstructorIndex (makeNestedBranch dc dc′)
-                         ≡ just (dataConIndex dc′)
-    bci-NestedBranch {_} {adt} {dc} {dc′} {{eqs}} with dc == dc′
-    ... | no ¬eq = refl
-    ... | yes eq rewrite eq = refl
-
-    rewrite-∘-in-map : ∀ {κ} {adt : ADT κ} {{eqs : RequiredEqAtCompileTime adt}} →
-                         (dc : DataCon (adtTyCon adt)) →
-                         (fins : List (Fin (ADT.nbConstructors adt))) →
-                         map just fins ≡
-                         map (branchConstructorIndex ∘ makeNestedBranch dc ∘ con adt)
-                             fins
-    rewrite-∘-in-map dc [] = refl
-    rewrite-∘-in-map {_} {adt} {{eqs}} dc (f ∷ fins) rewrite
-      bci-NestedBranch {_} {adt} {dc = dc} {dc′ = con adt f} {{eqs}} |
-      rewrite-∘-in-map dc fins = refl
+  = refl
 
 
 makeBranch : ∀ {κ} {adt : ADT κ} {{eqs : RequiredEqAtCompileTime adt}} →
