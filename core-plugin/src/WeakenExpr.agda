@@ -1,5 +1,6 @@
 module WeakenExpr where
 
+open import Prelude using () renaming (trans to ≡-trans)
 open import MyPrelude hiding (_$_; [_])
 open import TypedCore
 open import WeakenInCxt
@@ -317,33 +318,22 @@ tl-++ [] p = p
 tl-++ (κ ∷ Σ₁) p = tl (tl-++ Σ₁ p)
 
 ⊆-skip-++ : ∀ {Σ₁ Σ₃} → (Σ₂ : TyCxt) → Σ₁ ⊆ Σ₃ → Σ₁ ⊆ (Σ₂ ++ Σ₃)
-⊆-skip-++ {[]} Σ₂ p = tt
-⊆-skip-++ {x ∷ Σ₁} Σ₂ (p₁ , p₂) = (tl-++ Σ₂ p₁) , ⊆-skip-++ Σ₂ p₂
--- ⊆-skip-++ [] p = p
--- ⊆-skip-++ (κ ∷ Σ₂) p = ⊆-skip (⊆-skip-++ Σ₂ p)
--- κ ∈ (Σ₂ ++ Σ₁)
+⊆-skip-++ [] p = p
+⊆-skip-++ (κ ∷ Σ₂) p = ⊆-skip (⊆-skip-++ Σ₂ p)
 
--- helper : ∀ {Σ₁ Σ₂ Σ x} → (sub : Σ₁ ⊆ Σ₂) → (p : x ∈ Σ₁) → ∈-over-⊆ (⊆-skip-++ Σ sub) p ≡ tl (∈-over-⊆ sub p)
--- helper = ?
+tl-∈-over-⊆-skip : ∀ {Σ₁ Σ₂ : TyCxt} {κ₁ κ₂} → (p : Σ₁ ⊆ Σ₂) → (q : κ₂ ∈ Σ₁) →
+           tl (∈-over-⊆ p q) ≡ ∈-over-⊆ (⊆-skip {x = κ₁} p) q
+tl-∈-over-⊆-skip (p₁ , p₂) hd = refl
+tl-∈-over-⊆-skip (p₁ , p₂) (tl p) = tl-∈-over-⊆-skip p₂ p
 
 tl-⊆-skip : ∀ {Σ₁ : TyCxt} {κ} → (Σ₂ : TyCxt) → (p : κ ∈ Σ₁) →
               tl-++ Σ₂ p ≡ ∈-over-⊆ (⊆-skip-++ Σ₂ ⊆-refl) p
--- tl-⊆-skip {[]} [] ()
--- tl-⊆-skip {κ ∷ Σ₁} [] hd = refl
--- tl-⊆-skip {y ∷ Σ₁} [] p = {!!}
--- tl-⊆-skip (x ∷ Σ₂) p = {!!}
 tl-⊆-skip [] hd = refl
 tl-⊆-skip [] (tl p) = tl-⊆-skip [] (tl p)
 tl-⊆-skip {[]} (κ₁ ∷ Σ₂) ()
-tl-⊆-skip {κ₁ ∷ Σ₁} (κ₂ ∷ Σ₂) hd = {! !}
-tl-⊆-skip {κ₁ ∷ Σ₁} (κ₂ ∷ Σ₂) (tl p) = {!!}
+tl-⊆-skip {κ₁ ∷ Σ₁} (κ₂ ∷ Σ₂) p = ≡-trans (cong tl (tl-⊆-skip Σ₂ p))
+   (tl-∈-over-⊆-skip (⊆-skip-++ Σ₂ (hd , ⊆-skip ⊆-refl)) p)
 
--- tl-⊆-skip {Σ₁} Σ₂ p with ⊆-skip-++ {Σ₁ = Σ₁} Σ₂ ⊆-refl
--- ... | q = {!!}
-
--- tl-⊆-skip [] hd = refl
--- tl-⊆-skip [] (tl p) = tl-⊆-skip [] (tl p)
--- tl-⊆-skip (κ₁ ∷ Σ₂) p rewrite tl-⊆-skip Σ₂ p = {!!}
 
 kastrol : ∀ {Σ₁ Σ₂ : TyCxt} {κ} → (p : Σ₁ ⊆ Σ₂) →
             ⊆-trans (⊆-skip {x = κ} ⊆-refl) (hd , ⊆-skip p)
