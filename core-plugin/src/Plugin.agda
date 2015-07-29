@@ -31,7 +31,7 @@ program : ModGuts → CoreM CoreExpr
 program guts = runToCoreM guts (toCore `eqFoo`)
 
 agdaMetaPass : List CommandLineOption → ModGuts → CoreProgram → CoreM CoreProgram
-agdaMetaPass options guts prog = replaceAgdaWith (program guts) prog
+agdaMetaPass options guts prog = replaceAgdaWith (λ _ → program guts) prog
 {-# COMPILED_EXPORT agdaMetaPass agdaMetaPass #-}
 
 

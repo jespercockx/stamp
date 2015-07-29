@@ -311,16 +311,21 @@ postulate
 {-# COMPILED varNameSpace OccName.varName #-}
 
 
-replaceAgdaWith : CoreM CoreExpr → CoreProgram → CoreM CoreProgram
+replaceAgdaWith : (List CoreExpr → CoreM CoreExpr) →
+                  CoreProgram → CoreM CoreProgram
 replaceAgdaWith repl = transform t f
   where
-    t : (e : CoreExpr) → WeakDec ⊤
+    t : (e : CoreExpr) → WeakDec (List CoreExpr)
     t (Var' id) with getOccString id == "agda"
-    ... | yes p  = yes tt
+    ... | yes p  = yes []
     ... | no _   = no
     -- Look through type applications
-    t (App e' (Type' _)) = t e'
-    t (Lam v e') = t e' -- Look through type + dict abstractions
+    t (App e (Type' _)) = t e
+    -- Remember the arguments
+    t (App e arg) with t e
+    ... | yes args = yes (arg ∷ args)
+    ... | no       = no
+    t (Lam _ e) = t e -- Look through type + dict abstractions
     t _ = no
-    f : Σ CoreExpr (λ e → ⊤) → CoreM CoreExpr
-    f _ = repl
+    f : Σ CoreExpr (λ e → List CoreExpr) → CoreM CoreExpr
+    f (_ , args) = repl args
