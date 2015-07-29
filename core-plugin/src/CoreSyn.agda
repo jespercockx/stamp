@@ -310,33 +310,15 @@ postulate
 {-# COMPILED tvNameSpace OccName.tvName #-}
 {-# COMPILED varNameSpace OccName.varName #-}
 
-replaceAgdaWith : (Type → CoreM CoreExpr) → CoreProgram → CoreM CoreProgram
+
+replaceAgdaWith : CoreM CoreExpr → CoreProgram → CoreM CoreProgram
 replaceAgdaWith repl = transform t f
-  where
-    t : (e : CoreExpr) → WeakDec (∃₂ λ id ty → e ≡ App (Var' id) (Type' ty) × getOccString id ≡ "agda")
-    t (App (Var' id) (Type' ty)) with getOccString id == "agda"
-    t (App (Var' id) (Type' ty)) | yes p = yes (id , ty , refl , p)
-    t (App (Var' id) (Type' ty)) | no _  = no
-    t e = no
-    f : Σ CoreExpr (λ e → ∃₂ λ id ty → e ≡ App (Var' id) (Type' ty) × getOccString id ≡ "agda") → CoreM CoreExpr
-    f (.(App (Var' id) (Type' ty)) , id , ty , refl , _) = trace "REPLACING" (repl ty)
-
-replaceAgdaWithTrue : CoreProgram → CoreM CoreProgram
-replaceAgdaWithTrue = replaceAgdaWith repl
-  where
-    repl : Type → CoreM CoreExpr
-    repl ty = mkId "_" (funArgTy ty) >>= λ id → return $ Lam id (mkCoreConApps trueDataCon [])
-
-
--- Variant of replaceAgdaWith that removes all the type abstractions
--- and type applications performed by GHC.
-replaceAgdaWith′ : CoreM CoreExpr → CoreProgram → CoreM CoreProgram
-replaceAgdaWith′ repl = transform t f
   where
     t : (e : CoreExpr) → WeakDec ⊤
     t (Var' id) with getOccString id == "agda"
     ... | yes p  = yes tt
     ... | no _   = no
+    -- Look through type applications
     t (App e' (Type' _)) = t e'
     t (Lam v e') = t e' -- Look through type + dict abstractions
     t _ = no
