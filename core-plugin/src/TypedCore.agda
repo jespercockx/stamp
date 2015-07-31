@@ -128,8 +128,6 @@ tyConCxt = ADT.tyCxt ∘ tyConADT
 tyConConstructors : ∀ {κ} → TyCon κ → List ForeignDataCon
 tyConConstructors (con adt) = vecToList (fst <$> ADT.constructors adt)
 
-tyConType : ∀ {κ} → (tc : TyCon κ) → Type (tyConCxt tc) ∗
-
 adtTyCon : ∀ {κ} → ADT κ → TyCon κ
 adtTyCon = con
 
@@ -168,16 +166,6 @@ mkFunRev : ∀ {Σ : TyCxt} → Cxt Σ → Type Σ ∗ → Type Σ ∗
 mkFunRev []       τ = τ
 mkFunRev (τ₁ ∷ Γ) τ = τ₁ ⇒ mkFunRev Γ τ
 
-dcType : ∀ {κ} {tc : TyCon κ} → DataCon tc → Type [] ∗
-dcType {κ} dc = mkForAll (ADT.tyCxt adt)
-                         (mkFunRev (dataConArgs dc)
-                                   (tyConType (con adt)))
-  where
-    adt : ADT κ
-    adt = dataConADT dc
-
-
-
 -- Problems to solve:
 -- * Exhaustiveness: for `TyCon`, list all `DataCon`s
 -- * Type check: given a `TyCon` and a `DataCon`, check that the type of the
@@ -187,6 +175,20 @@ dcType {κ} dc = mkForAll (ADT.tyCxt adt)
 
 --- Weakening and substitution
 
+
+Types : TyCxt → List Kind → Set
+Types Σ = All (Type Σ)
+
+TySubst : TyCxt → TyCxt → Set
+TySubst Σ₁ Σ₂ = Types Σ₂ Σ₁
+
+WeakenS : ∀ {Σ₁ Σ₂} → Σ₁ ⊆ Σ₂ → TySubst Σ₁ Σ₂
+WeakenS [] = []
+WeakenS (p ∷ ps) = tvar p ∷ WeakenS ps
+
+IdS : ∀ {Σ} → TySubst Σ Σ
+IdS = WeakenS ⊆-refl
+
 weakenType : ∀ {Σ₁ Σ₂ κ} → Type Σ₁ κ → Σ₁ ⊆ Σ₂ → Type Σ₂ κ
 weakenType (tvar i)     p = tvar (∈-over-⊆ p i)
 weakenType (τ₁ $ τ₂)    p = weakenType τ₁ p $ weakenType τ₂ p
@@ -195,25 +197,39 @@ weakenType (forAll κ τ) p = forAll κ (weakenType τ (⊆-keep p))
 weakenType (con c)      p = con c
 weakenType (lit l)      p = lit l
 
+weakenTypes : ∀ {κs Σ₁ Σ₂} → Types Σ₁ κs → (p : Σ₁ ⊆ Σ₂) → Types Σ₂ κs
+weakenTypes xs p = mapAll (λ τ → weakenType τ p) xs
+
 weakenCxt : ∀ {Σ₁ Σ₂} → Cxt Σ₁ → Σ₁ ⊆ Σ₂ → Cxt Σ₂
 weakenCxt τs p = map (flip weakenType p) τs
 
 shift : ∀ {κ κ′ Σ} → Type Σ κ → Type (κ′ ∷ Σ) κ
 shift τ = weakenType τ (⊆-skip ⊆-refl)
 
-{-# TERMINATING #-}
+ShiftS : ∀ {Σ₁ Σ₂ κ} → TySubst Σ₁ Σ₂ → TySubst Σ₁ (κ ∷ Σ₂)
+ShiftS = mapAll shift
+
+LiftS : ∀ {Σ₁ Σ₂ κ} → TySubst Σ₁ Σ₂ → TySubst (κ ∷ Σ₁) (κ ∷ Σ₂)
+LiftS sub = tvar hd ∷ ShiftS sub
+
+lookupTySubst : ∀ {Σ₁ Σ₂ κ} → TySubst Σ₁ Σ₂ → κ ∈ Σ₁ → Type Σ₂ κ
+lookupTySubst = ∈-All
+
+applyTySubst : ∀ {Σ₁ Σ₂ κ} → TySubst Σ₁ Σ₂ → Type Σ₁ κ → Type Σ₂ κ
+applyTySubst sub (tvar x) = lookupTySubst sub x
+applyTySubst sub (τ₁ $ τ₂) = applyTySubst sub τ₁ $ applyTySubst sub τ₂
+applyTySubst sub (τ₁ ⇒ τ₂) = applyTySubst sub τ₁ ⇒ applyTySubst sub τ₂
+applyTySubst sub (forAll κ τ) = forAll κ (applyTySubst (LiftS sub) τ)
+applyTySubst sub (con c) = con c
+applyTySubst sub (lit l) = lit l
+
+ComposeS : ∀ {Σ₁ Σ₂ Σ₃} → TySubst Σ₁ Σ₂ → TySubst Σ₂ Σ₃ → TySubst Σ₁ Σ₃
+ComposeS sub₁ sub₂ = mapAll (applyTySubst sub₂) sub₁
+
 substTop : ∀ {Σ κ κ′} → Type Σ κ′ → Type (κ′ ∷ Σ) κ → Type Σ κ
-substTop τ (tvar hd)     = τ
-substTop τ (tvar (tl x)) = tvar x
-substTop τ (t₁ $ t₂)     = substTop τ t₁ $ substTop τ t₂
-substTop τ (t₁ ⇒ t₂)     = substTop τ t₁ ⇒ substTop τ t₂
-substTop τ (forAll κ t)  = forAll κ (substTop (weakenType τ (⊆-skip ⊆-refl))
-                                              (weakenType t ⊆-swap))
-substTop τ (con c)       = con c
-substTop τ (lit l)       = lit l
+substTop τ₁ τ₂ = applyTySubst (τ₁ ∷ IdS) τ₂
 
---- Eq instances
-
+-- Eq instances
 
 Adt-inj₁ : ∀ {κ} {ftc₁ ftc₂} {n₁ n₂} {cs₁ cs₂} →
              Adt {κ} ftc₁ n₁ cs₁ ≡ Adt {κ} ftc₂ n₂ cs₂ → ftc₁ ≡ ftc₂
@@ -291,34 +307,28 @@ data ForeignVar (Σ : TyCxt) (τ : Type Σ ∗) : Set where
 data ForeignDict (Σ : TyCxt) (τ : Type Σ ∗) : Set where
   fdict : ForeignDict Σ τ
 
-Types : TyCxt → List Kind → Set
-Types Σ = All (Type Σ)
-
-
-weakenTypes : ∀ {κs Σ₁ Σ₂} → Types Σ₁ κs → (p : Σ₁ ⊆ Σ₂) → Types Σ₂ κs
-weakenTypes [] _ = []
-weakenTypes (τ ∷ τs) p = weakenType τ p ∷ weakenTypes τs p
-
-
 lastAll : ∀ {A : Set} {P : A → Set} {xs : List A} {x : A} →
             All P (xs ++ x ∷ []) → All P xs × P x
 lastAll {xs = []} (p ∷ []) = [] , p
 lastAll {xs = x ∷ xs} (p ∷ all) with lastAll {xs = xs} all
 ... | all′ , p′ = (p ∷ all′) , p′
 
-
 applyTyArgs : ∀ {Σ κ} → Type Σ κ → Types Σ (saturatedTyCxt κ) → Type Σ ∗
 applyTyArgs {κ = ∗} τ [] = τ
 applyTyArgs {Σ} {κ = κ ⇒ κ₁} τ τs with lastAll τs
 ... | τs′ , τ₁ = applyTyArgs (τ $ τ₁) τs′
 
+tyConType : ∀ {κ} → (tc : TyCon κ) → Type (tyConCxt tc) ∗
+tyConType tc = applyTyArgs (con tc) IdS
 
-Types-Σ : ∀ Σ → Types Σ Σ
-Types-Σ [] = []
-Types-Σ (κ ∷ Σ) = tvar hd ∷ weakenTypes (Types-Σ Σ) (⊆-skip ⊆-refl)
+dcType : ∀ {κ} {tc : TyCon κ} → DataCon tc → Type [] ∗
+dcType {κ} dc = mkForAll (ADT.tyCxt adt)
+                         (mkFunRev (dataConArgs dc)
+                                   (tyConType (con adt)))
+  where
+    adt : ADT κ
+    adt = dataConADT dc
 
-
-tyConType tc = applyTyArgs (con tc) (Types-Σ (tyConCxt tc))
 
 
 data Branch (Σ : TyCxt) (Γ : Cxt Σ) {κ} (adt : ADT κ)
@@ -338,7 +348,7 @@ data Expr (Σ : TyCxt) (Γ : Cxt Σ) : Type Σ ∗ → Set where
   Λ       : ∀ κ {τ} → Expr (κ ∷ Σ) (weakenCxt Γ (⊆-skip ⊆-refl)) τ →
               Expr Σ Γ (forAll κ τ)
   con     : ∀ {κ} {tc : TyCon κ} → (dc : DataCon tc) →
-              Expr Σ Γ (weakenType (dcType dc) tt)
+              Expr Σ Γ (weakenType (dcType dc) [])
   lit     : ∀ {τ} → ForeignLit Σ τ → Expr Σ Γ τ
   fvar    : ∀ {τ} → ForeignVar Σ τ → Expr Σ Γ τ
   fdict   : ∀ {τ} → ForeignDict Σ τ → Expr Σ Γ τ -- TODO Constraint kind?
@@ -354,31 +364,14 @@ data Pat (Σ : TyCxt) {κ} (adt : ADT κ) (tyArgs : Types Σ (ADT.tyCxt adt)) :
   lit : Literal → Pat Σ adt tyArgs
   con : (dc : DataCon (con adt)) → Pat Σ adt tyArgs
 
-substTyArg : ∀ {κ κs Σ} → κ ∈ κs → Types Σ κs → Type Σ κ
-substTyArg hd (τ ∷ _) = τ
-substTyArg (tl n) (p ∷ τs) = substTyArg n τs
-
-substTyArgs : ∀ {κ Σ Σ′} → Types Σ′ Σ →
-                Type Σ κ → Type Σ′ κ
-substTyArgs τs (tvar n)     = substTyArg n τs
-substTyArgs τs (τ₁ $ τ₂)    = substTyArgs τs τ₁ $ substTyArgs τs τ₂
-substTyArgs τs (τ₁ ⇒ τ₂)    = substTyArgs τs τ₁ ⇒ substTyArgs τs τ₂
-substTyArgs τs (forAll κ τ) = forAll κ (substTyArgs (tvar hd ∷ weakenTypes τs (⊆-skip ⊆-refl)) τ)
-substTyArgs τs (con c)      = con c
-substTyArgs τs (lit l)      = lit l
-
-
 patBinders : ∀ {Σ κ} {adt : ADT κ} {tyArgs} → Pat Σ {κ} adt tyArgs → Cxt Σ
-patBinders {tyArgs = tyArgs} (con dc) = map (substTyArgs tyArgs) (dataConArgs dc)
+patBinders {tyArgs = tyArgs} (con dc) = map (applyTySubst tyArgs) (dataConArgs dc)
 patBinders _ = []
 
 data Branch Σ Γ {κ} adt tyArgs where
   alt : ∀ {τ} → (pat : Pat Σ adt tyArgs) →
           Expr Σ (patBinders pat +++ Γ) τ →
           Branch Σ Γ adt tyArgs τ
-
-
-
 
 branchConstructorIndex : ∀ {Σ Γ κ adt tyArgs τ} → Branch Σ Γ {κ} adt tyArgs τ →
                            Maybe (Fin (ADT.nbConstructors adt))

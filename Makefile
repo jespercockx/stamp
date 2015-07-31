@@ -1,4 +1,4 @@
-ADGA_PRELUDE := /home/thomasw/.cabal-sandboxes/Agda-Core/agda-prelude/src
+ADGA_PRELUDE := /home/jesper/agda-prelude/src
 
 all: utils plugin test
 

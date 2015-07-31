@@ -12,10 +12,8 @@ open import TypedCore
 
 ⊆-weakenCxt : ∀ {Σ₁ Σ₂} {Γ₁ Γ₂ : Cxt Σ₁} → Γ₁ ⊆ Γ₂ → (p : Σ₁ ⊆ Σ₂) →
                 weakenCxt Γ₁ p ⊆ weakenCxt Γ₂ p
-⊆-weakenCxt {Γ₁ = []} q p = tt
-⊆-weakenCxt {Γ₁ = _ ∷ Γ₁} (q₁ , q₂) p = (∈-weakenCxt q₁ p) , (⊆-weakenCxt q₂ p)
-
-
+⊆-weakenCxt [] p = []
+⊆-weakenCxt (q₁ ∷ q₂) p = (∈-weakenCxt q₁ p) ∷ (⊆-weakenCxt q₂ p)
 
 {-# TERMINATING #-}
 weakenInCxt : ∀ {Σ} {Γ₁ Γ₂ : Cxt Σ} {τ : Type Σ ∗} → Expr Σ Γ₁ τ →

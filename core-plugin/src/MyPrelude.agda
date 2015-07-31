@@ -1,13 +1,13 @@
 module MyPrelude where
 
 open import Prelude hiding (trans; reverse) public
+open import Builtin.Size public
 open import Control.Monad.Reader public
 open import Control.Monad.Trans public
 open import Control.Monad.State hiding (lift) public
 open import Data.Int public
 open import Data.List using (All; _∷_; []) public
 open import Tactic.Deriving.Eq
-
 
 module Exists where
   open import Prelude.Product public
@@ -106,9 +106,20 @@ tl-inj refl = refl
 ∈2el {x = x} _ = x
 
 ∈-All : ∀ {A : Set} {P : A → Set} {xs x} → All P xs → x ∈ xs → P x
-∈-All [] ()
 ∈-All (p ∷ _) hd = p
 ∈-All (_ ∷ ps) (tl i) = ∈-All ps i
+
+tailAll : ∀ {A : Set} {P : A → Set} {x : A} {xs : List A} → All P (x ∷ xs) → All P xs
+tailAll (_ ∷ xs) = xs
+
+mapAll : ∀ {A : Set} {P Q : A → Set} (f : {x : A} → P x → Q x) {xs : List A} → All P xs → All Q xs
+mapAll f [] = []
+mapAll f (x ∷ xs) = f x ∷ mapAll f xs
+
+∈-mapAll : ∀ {A : Set} {P Q : A → Set} (f : {x : A} → P x → Q x) {xs : List A} {x : A} →
+           (ps : All P xs) (i : x ∈ xs) → ∈-All (mapAll f ps) i ≡ f (∈-All ps i)
+∈-mapAll f (p ∷ ps) hd = refl
+∈-mapAll f (p ∷ ps) (tl i) = ∈-mapAll f ps i
 
 ∈-prefix : ∀ {A : Set} {x : A} {xs ys : List A} →
              x ∈ xs → x ∈ (ys ++ xs)
@@ -251,53 +262,46 @@ reverse (x ∷ xs) = reverse xs ++ [ x ]
 infix 4 _⊆_
 
 _⊆_ : ∀ {A : Set} → (xs ys : List A) → Set
-[] ⊆ _ = ⊤
-x ∷ xs ⊆ ys = (x ∈ ys) × (xs ⊆ ys)
+xs ⊆ ys = All (λ x → x ∈ ys) xs
 
 _⊈_ : ∀ {A : Set} → List A → List A → Set
 xs ⊈ ys = ¬ (xs ⊆ ys)
 
-∈-over-⊆ : ∀ {A : Set} {xs ys : List A} → xs ⊆ ys → ∀ {x} → x ∈ xs → x ∈ ys
-∈-over-⊆ (p₁ , p₂) hd = p₁
-∈-over-⊆ (p₁ , p₂) (tl q) = ∈-over-⊆ p₂ q
+∈-over-⊆ : ∀ {A : Set} {xs ys : List A} {x} → xs ⊆ ys → x ∈ xs → x ∈ ys
+∈-over-⊆ = ∈-All
 
 ⊆-over-∈ : ∀ {A : Set} {xs ys : List A} →
              (∀ {x} → x ∈ xs → x ∈ ys) →
              xs ⊆ ys
-⊆-over-∈ {xs = []} f = tt
-⊆-over-∈ {xs = _ ∷ xs} f = (f hd) , (⊆-over-∈ (λ p → f (tl p)))
+⊆-over-∈ {xs = []} f = []
+⊆-over-∈ {xs = _ ∷ xs} f = (f hd) ∷ (⊆-over-∈ (λ p → f (tl p)))
 
 ⊆-skip : ∀ {A : Set} {x : A} {xs ys : List A} → xs ⊆ ys → xs ⊆ (x ∷ ys)
-⊆-skip {xs = []} p = tt
-⊆-skip {xs = x₁ ∷ xs} (p , q) = (tl p) , (⊆-skip q)
+⊆-skip {xs = []} p = []
+⊆-skip {xs = x₁ ∷ xs} (p ∷ q) = (tl p) ∷ (⊆-skip q)
 
 ⊆-refl : ∀ {A : Set} {xs : List A} → xs ⊆ xs
-⊆-refl {xs = []} = tt
-⊆-refl {xs = x ∷ xs} = hd , ⊆-skip ⊆-refl
+⊆-refl {xs = []} = []
+⊆-refl {xs = x ∷ xs} = hd ∷ ⊆-skip ⊆-refl
 
 ⊆-empty : ∀ {A : Set} {xs : List A} → [] ⊆ xs
-⊆-empty = tt
+⊆-empty = []
 
 ⊆-empty-⊥ : ∀ {A : Set} {x : A} {xs : List A} → x ∷ xs ⊆ [] → ⊥
-⊆-empty-⊥ (() , _)
+⊆-empty-⊥ (() ∷ _)
 
 ⊆-swap : ∀ {A : Set} {x y : A} {xs : List A} → (x ∷ y ∷ xs) ⊆ (y ∷ x ∷ xs)
-⊆-swap = tl hd , hd , (⊆-skip (⊆-skip ⊆-refl))
+⊆-swap = tl hd ∷ hd ∷ (⊆-skip (⊆-skip ⊆-refl))
 
 ⊆-keep : ∀ {A : Set} {x : A} {xs ys : List A} → xs ⊆ ys → (x ∷ xs) ⊆ (x ∷ ys)
-⊆-keep p = hd , (⊆-skip p)
+⊆-keep p = hd ∷ (⊆-skip p)
 
 -- ⊆-trans : ∀ {A : Set} {xs ys zs : List A} → xs ⊆ ys → ys ⊆ zs → xs ⊆ zs
 -- ⊆-trans p q = ⊆-over-∈ (∈-over-⊆ q ∘ ∈-over-⊆ p)
 
 ⊆-trans : ∀ {A : Set} {xs ys zs : List A} → xs ⊆ ys → ys ⊆ zs → xs ⊆ zs
-⊆-trans {xs = []} {[]} p tt = tt
-⊆-trans {xs = x ∷ xs} {[]} (() , _) tt
-⊆-trans {xs = []} {y ∷ ys} p q = tt
-⊆-trans {xs = _ ∷ _} {._ ∷ _} (hd , p₂) (q₁ , q₂)
-  = q₁ , ⊆-trans p₂ (q₁ , q₂)
-⊆-trans {xs = _ ∷ _′} {_ ∷ _} (tl p₁ , p₂) (q₁ , q₂)
-  = (∈-over-⊆ q₂ p₁) , ⊆-trans p₂ (q₁ , q₂)
+⊆-trans {xs = []} p q = []
+⊆-trans {xs = x ∷ xs} (px ∷ pxs) q = ∈-over-⊆ q px ∷ ⊆-trans pxs q
 
 ⊆-++-swap : ∀ {A : Set} (xs ys : List A) → xs ++ ys ⊆ ys ++ xs
 ⊆-++-swap xs ys = ⊆-over-∈ (∈-++-swap {xs = xs} {ys = ys})
@@ -305,7 +309,7 @@ xs ⊈ ys = ¬ (xs ⊆ ys)
 ⊆-++-prefix : ∀ {A : Set} {xs ys zs : List A} → xs ⊆ ys →
                 zs ++ xs ⊆ zs ++ ys
 ⊆-++-prefix {zs = []} p = p
-⊆-++-prefix {zs = z ∷ zs} p = hd , ⊆-skip (⊆-++-prefix {zs = zs} p)
+⊆-++-prefix {zs = z ∷ zs} p = hd ∷ ⊆-skip (⊆-++-prefix {zs = zs} p)
 
 ⊆-+++-prefix : ∀ {A : Set} {xs ys zs : List A} → xs ⊆ ys →
                  zs +++ xs ⊆ zs +++ ys
@@ -325,8 +329,8 @@ xs ⊈ ys = ¬ (xs ⊆ ys)
 
 ⊆-map-inj : ∀ {A B : Set} {xs ys : List A} {f : A → B} →
               xs ⊆ ys → map f xs ⊆ map f ys
-⊆-map-inj {xs = []} p = tt
-⊆-map-inj {xs = x ∷ xs} (p₁ , p₂) = (∈-map-inj p₁) , (⊆-map-inj p₂)
+⊆-map-inj {xs = []} p = []
+⊆-map-inj {xs = x ∷ xs} (p₁ ∷ p₂) = (∈-map-inj p₁) ∷ (⊆-map-inj p₂)
 
 
 allFin : (n : Nat) → List (Fin n)
