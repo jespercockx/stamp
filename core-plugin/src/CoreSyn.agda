@@ -311,12 +311,12 @@ postulate
 {-# COMPILED varNameSpace OccName.varName #-}
 
 
-replaceAgdaWith : (List CoreExpr → CoreM CoreExpr) →
+replaceAgdaSpliceWith : (List CoreExpr → CoreM CoreExpr) →
                   CoreProgram → CoreM CoreProgram
-replaceAgdaWith repl = transform t f
+replaceAgdaSpliceWith repl = transform t f
   where
     t : (e : CoreExpr) → WeakDec (List CoreExpr)
-    t (Var' id) with getOccString id == "agda"
+    t (Var' id) with getOccString id == "agdaSplice"
     ... | yes p  = yes []
     ... | no _   = no
     -- Look through type applications

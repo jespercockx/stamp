@@ -21,6 +21,7 @@ library
   exposed-modules:     InstallPlugin
                      , Plugin
                      , ShowCore
+                     , Quoter
                      , MAlonzo.Code.Plugin
                      , MAlonzo.Code.CoreMonad
                      , MAlonzo.Code.CoreSyn
@@ -63,5 +64,6 @@ library
                      , text
                      , utils
                      , ghc-prim
+                     , template-haskell
   build-tools:         agda
   default-language:    Haskell2010

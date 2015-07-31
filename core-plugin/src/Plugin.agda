@@ -55,7 +55,7 @@ selectMetaProgram guts (arg ∷ _) with asString arg
 ... | nothing  = error "Non-string argument"
 
 agdaMetaPass : List CommandLineOption → ModGuts → CoreProgram → CoreM CoreProgram
-agdaMetaPass options guts prog = replaceAgdaWith (selectMetaProgram guts) prog
+agdaMetaPass options guts prog = replaceAgdaSpliceWith (selectMetaProgram guts) prog
 {-# COMPILED_EXPORT agdaMetaPass agdaMetaPass #-}
 
 

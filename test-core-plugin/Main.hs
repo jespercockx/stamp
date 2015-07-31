@@ -1,17 +1,16 @@
+{-# LANGUAGE QuasiQuotes #-}
 module Main where
 
 import Data
+import Quoter
 
-agda :: a
-agda = error "Compiler plugin did not run correctly"
-{-# NOINLINE agda #-}
 
 main :: IO ()
 main = do
   -- putStrLn "Hello World"
   -- putStrLn $ show $ Pair True 'x' `eqPair` Pair True 'x'
   putStrLn $ "Barry `eqFoo` Barry: " ++ show (Barry `eqFoo` Barry)
-  agda "hello"
+  [agda| hello |]
   -- putStrLn $ "Barry `eqFoo` Bar True: " ++ show (Barry `eqFoo` Bar True)
   -- putStrLn $ "Bar True `eqFoo` Bar True: " ++ show (Bar True `eqFoo` Bar True)
   -- putStrLn $ "Bar False `eqFoo` Bar True: " ++ show (Bar False `eqFoo` Bar True)
@@ -38,7 +37,7 @@ main = do
 
 
 eqFoo :: Foo -> Foo -> Bool
-eqFoo = agda "eqFoo"
+eqFoo = [agda| eqFoo |]
 -- eqFoo f1 f2 = case (f1, f2) of
 --   (Barry, Barry)   -> True
 --   (Bar b1, Bar b2) -> b1 == b2
