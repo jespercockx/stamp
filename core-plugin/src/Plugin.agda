@@ -14,7 +14,6 @@ open import TypedCore
 open import ToCore
 open import MkPick using (pick1Of3)
 open import HelloWorld using (printHelloWorld)
--- open import DeriveShow using (`showFoo`; deriveShow; `Foo`)
 open import DeriveEq using (`eqFoo`; `eqPair`)
 -- open import DeriveLenses using (`aBool`)
 

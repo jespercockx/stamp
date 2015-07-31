@@ -3,7 +3,19 @@ module DeriveEq where
 open import MyPrelude hiding (_$_; [_]; show)
 open import TypedCore
 open import HelloWorld
-open import DeriveShow
+
+FooADT : ADT ∗
+FooADT = makeADT (fcon "Data" "Foo")
+                 ((fcon "Data" "Barry" , []) ∷ (fcon "Data" "Bar" , con `Bool` ∷ []) ∷ [])
+
+`Foo` : TyCon ∗
+`Foo` = con FooADT
+
+`Barry` : DataCon `Foo`
+`Barry` = con FooADT zero
+
+`Bar` : DataCon `Foo`
+`Bar` = con FooADT (suc zero)
 
 
 `&&` : ∀ {Σ} {Γ : Cxt Σ} → Expr Σ Γ (con `Bool` ⇒ con `Bool` ⇒ con `Bool`)
