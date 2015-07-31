@@ -60,6 +60,7 @@ library
                      , ghc
                      , agda-ffi
                      , bytestring
+                     , text
                      , utils
                      , ghc-prim
   build-tools:         agda

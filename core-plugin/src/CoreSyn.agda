@@ -327,5 +327,5 @@ replaceAgdaWith repl = transform t f
     ... | no       = no
     t (Lam _ e) = t e -- Look through type + dict abstractions
     t _ = no
-    f : Σ CoreExpr (λ e → List CoreExpr) → CoreM CoreExpr
+    f : CoreExpr × List CoreExpr → CoreM CoreExpr
     f (_ , args) = repl args
