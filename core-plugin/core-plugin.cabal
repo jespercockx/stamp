@@ -20,7 +20,9 @@ library
   hs-source-dirs:      src
   exposed-modules:     InstallPlugin
                      , Plugin
+                     , Plugin2
                      , ShowCore
+                     , Splice
                      , Quoter
                      , MAlonzo.Code.Plugin
                      , MAlonzo.Code.CoreMonad
@@ -56,13 +58,18 @@ library
                      , MAlonzo.Code.Prelude.Char
                      , MAlonzo.RTE
 
-  build-depends:       base >=4.7 && <4.8
-                     , ghc
-                     , agda-ffi
+  build-depends:       agda-ffi
+                     , base >=4.7 && <4.8
                      , bytestring
-                     , text
-                     , utils
+                     , filepath
+                     , ghc
                      , ghc-prim
+                     , hint
+                     , process
                      , template-haskell
+                     , temporary
+                     , text
+                     , uniplate
+                     , utils
   build-tools:         agda
   default-language:    Haskell2010

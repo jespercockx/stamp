@@ -1,16 +1,16 @@
 {-# LANGUAGE QuasiQuotes #-}
 module Main where
 
-import Data
+--import Data
 import Quoter
 
 
 main :: IO ()
-main = do
+main = -- do
   -- putStrLn "Hello World"
   -- putStrLn $ show $ Pair True 'x' `eqPair` Pair True 'x'
-  putStrLn $ "Barry `eqFoo` Barry: " ++ show (Barry `eqFoo` Barry)
-  [agda| hello |]
+  -- putStrLn $ "Barry `eqFoo` Barry: " ++ show (Barry `eqFoo` Barry)
+  [agda| printHelloWorld |]
   -- putStrLn $ "Barry `eqFoo` Bar True: " ++ show (Barry `eqFoo` Bar True)
   -- putStrLn $ "Bar True `eqFoo` Bar True: " ++ show (Bar True `eqFoo` Bar True)
   -- putStrLn $ "Bar False `eqFoo` Bar True: " ++ show (Bar False `eqFoo` Bar True)
@@ -36,8 +36,8 @@ main = do
 --   Bar b -> "Bar" ++ show b
 
 
-eqFoo :: Foo -> Foo -> Bool
-eqFoo = [agda| eqFoo |]
+-- eqFoo :: Foo -> Foo -> Bool
+-- eqFoo = [agda| eqFoo |]
 -- eqFoo f1 f2 = case (f1, f2) of
 --   (Barry, Barry)   -> True
 --   (Bar b1, Bar b2) -> b1 == b2

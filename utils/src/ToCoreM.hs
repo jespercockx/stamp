@@ -1,18 +1,20 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 module ToCoreM where
 
-import Find
-import GhcPlugins
-import Panic (panicDoc)
-
 import Data.Functor ((<$>))
+import Data.Typeable (Typeable)
 import Control.Applicative (Applicative)
 import Control.Arrow (first, second)
 
 import Control.Monad.Reader (MonadReader, ReaderT, runReaderT, ask)
 import Control.Monad.Trans (lift)
 import Control.Monad.State (MonadState, StateT, runStateT, gets, modify)
+import GhcPlugins
+import Panic (panicDoc)
+
+import Find
 
 type Env = ([TyVar], [Id])
 
@@ -22,7 +24,7 @@ emptyEnv = ([], [])
 -- TODO use TcM?
 newtype ToCoreM a = ToCoreM (ReaderT ModGuts (StateT Env CoreM) a)
                   deriving (Functor, Applicative, Monad,
-                            MonadReader ModGuts, MonadState Env)
+                            MonadReader ModGuts, MonadState Env, Typeable)
 
 
 liftCore :: CoreM a -> ToCoreM a
