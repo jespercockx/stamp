@@ -1,10 +1,10 @@
 {-# LANGUAGE StandaloneDeriving #-}
-module ShowCore where
+{-# OPTIONS_GHC -fno-warn-orphans  #-}
+module ShowCore (showCore) where
 
 import GhcPlugins
 import TypeRep
 import CostCentre
-import Module
 import CoAxiom
 
 
