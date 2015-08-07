@@ -1,8 +1,6 @@
 module Find (Named(..), findInGuts, findInstance) where
 
-import Control.Monad (liftM)
 import Data.List (intercalate)
-import Data.Functor ((<$>))
 
 import Class (Class)
 import ConLike (ConLike(..))
