@@ -25,15 +25,13 @@ data Named = ID Id
 findInstance :: ModGuts -> Class -> [Type] -> CoreM DFunId
 findInstance guts cls args = do
   hsc_env <- getHscEnv
-  putMsg (text "Finding instance for:" <+> ppr cls <+> ppr args)
   (_, mb_clsInst) <- liftIO $ initTcFromModGuts hsc_env guts HsSrcFile False $
                      tcLookupInstance cls args
-  putMsgS "DONE"
   return $ maybe (panic "No instance found") instanceDFunId mb_clsInst
 
 -- Copied from HERMIT
 findInGuts :: ModGuts -> RdrName -> CoreM Named
-findInGuts guts rdr_name = putMsgS "findInGuts" >> do
+findInGuts guts rdr_name = do
   let rdr_env  = mg_rdr_env guts
   case lookupGRE_RdrName rdr_name rdr_env of
         [gre] -> lookupNamed (gre_name gre)
@@ -41,7 +39,7 @@ findInGuts guts rdr_name = putMsgS "findInGuts" >> do
         _     -> fail "findInGuts: multiple names returned"
 
 findInPackageDB :: ModGuts -> RdrName -> CoreM Named
-findInPackageDB guts rdr_name = putMsgS "findInPackageDB" >> do
+findInPackageDB guts rdr_name = do
   mnm <- lookupName guts rdr_name
   case mnm of
     Nothing -> findNamedBuiltIn rdr_name
@@ -58,11 +56,10 @@ lookupNamed n = do
 
 -- | Helper to call lookupRdrNameInModule
 lookupName :: ModGuts -> RdrName -> CoreM (Maybe Name)
-lookupName guts rdr_name = putMsgS "lookupName" >> case isQual_maybe rdr_name of
+lookupName guts rdr_name = case isQual_maybe rdr_name of
   Nothing     -> return Nothing -- we can't use lookupName on the current module
   Just (m, _) -> do
     hsc_env <- getHscEnv
-    putMsgS "lookupRdrNameInModule"
     liftIO $ lookupRdrNameInModule hsc_env guts m rdr_name
 
 findNamedBuiltIn :: RdrName -> CoreM Named

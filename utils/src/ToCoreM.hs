@@ -35,7 +35,6 @@ runToCoreM modGuts (ToCoreM m)
 lookupForeign :: RdrName -> ToCoreM Named
 lookupForeign rdr_name = do
   guts <- ask
-  liftCore $ putMsg (text "Looking up:" <+> ppr rdr_name)
   liftCore $ findInGuts guts rdr_name
 
 lookupForeignId :: RdrName -> ToCoreM Id
