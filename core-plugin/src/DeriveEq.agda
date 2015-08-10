@@ -53,7 +53,7 @@ instance
 
 typesInConstructors : ∀ {κ} → (adt : ADT κ) → Cxt (ADT.tyCxt adt)
 typesInConstructors adt
-  = map (substTyArgs (Types-Σ (ADT.tyCxt adt)))
+  = map (applyTySubst IdS)
         (concatMap dataConArgs (adtDataCons adt))
 
 -- Type doesn't contain a type variable or forAll
@@ -133,7 +133,7 @@ compareArgs {κ} {adt} (τ ∷ binders) τs p
 
 
 ⊆-p : ∀ {κ} → (adt : ADT κ) → (dc : DataCon (adtTyCon adt)) →
-        patBinders {tyArgs = Types-Σ (ADT.tyCxt adt)} (con dc)
+        patBinders {tyArgs = IdS} (con dc)
         ⊆ typesInConstructors adt
 ⊆-p adt (con ._ i)
   = ⊆-map-inj (⊆-over-∈ (λ p → ∈-concatMap p (∈-map-inj (Fin∈allFin i))))
@@ -152,12 +152,12 @@ makeNestedBranchRHS {adt = adt} dc .dc | yes refl =
 makeNestedBranch : ∀ {κ} {adt : ADT κ} {{eqs : RequiredEqAtCompileTime adt}} →
                      (dc dc′ : DataCon (adtTyCon adt)) →
                      Branch (ADT.tyCxt adt)
-                            (patBinders {tyArgs = Types-Σ (ADT.tyCxt adt)}
+                            (patBinders {tyArgs = IdS}
                                         (con dc) +++
                             tyConType (adtTyCon adt) ∷
                             tyConType (adtTyCon adt) ∷
                             RequiredEqAtRunTime adt)
-                            adt (Types-Σ (ADT.tyCxt adt)) (con `Bool`)
+                            adt IdS (con `Bool`)
 makeNestedBranch dc dc′ = alt (con dc′) (makeNestedBranchRHS dc dc′)
 
 makeNestedBranchExhaustive :
@@ -178,10 +178,10 @@ makeBranch : ∀ {κ} {adt : ADT κ} {{eqs : RequiredEqAtCompileTime adt}} →
                Branch (ADT.tyCxt adt) (tyConType (adtTyCon adt) ∷
                                        tyConType (adtTyCon adt) ∷
                                        RequiredEqAtRunTime adt)
-                      adt (Types-Σ (ADT.tyCxt adt)) (con `Bool`)
+                      adt IdS (con `Bool`)
 makeBranch {_} {adt} dc
   = alt (con dc)
-        (match adt (Types-Σ (ADT.tyCxt adt))
+        (match adt IdS
                (var (∈-+++-suffix {ys = patBinders (con dc)} hd))
                (map (makeNestedBranch dc) (adtDataCons adt))
                (makeNestedBranchExhaustive dc))
@@ -225,7 +225,7 @@ deriveEq adt eqs
     (mkLam {Γ = RequiredEqAtRunTime adt}
     (lam (tyConType (adtTyCon adt))
     (lam (tyConType (adtTyCon adt))
-    (match adt (Types-Σ (ADT.tyCxt adt)) (var (tl hd))
+    (match adt IdS (var (tl hd))
            (map makeBranch (adtDataCons adt)) makeBranchExhaustive))))
 
 -- data Foo = Barry | Bar Bool
