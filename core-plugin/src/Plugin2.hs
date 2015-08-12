@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE QuasiQuotes #-}
 module Plugin2
        ( CompilationException
        , plugin
@@ -9,6 +10,7 @@ import           Data.Typeable (Typeable)
 import           System.Exit (ExitCode(..))
 import           System.IO (hPutStrLn, hClose, IOMode(WriteMode), withFile)
 
+import           Data.String.Interpolate (i)
 import           GhcPlugins
 import           Language.Haskell.Interpreter (setImports, loadModules, interpret)
 import           Language.Haskell.Interpreter.Unsafe (unsafeRunInterpreterWithArgs)
@@ -36,13 +38,16 @@ runMetaProgram guts code = do
 withAgdaFile :: AgdaCode -> (FilePath -> IO a) -> IO a
 withAgdaFile code f = withSystemTempFile "AgdaSplice.agda" $ \file h -> do
   -- TODO cleaner to splice
-  hPutStrLn h ("module " ++ dropExtension (takeFileName file) ++ " where")
-  hPutStrLn h "open import ToCore"
-  hPutStrLn h "open import CoreSyn"
-  hPutStrLn h "open import HelloWorld"
-  hPutStrLn h "metaProg : ToCoreM CoreExpr"
-  hPutStrLn h ("metaProg = toCore (" ++ code ++ ")")
-  hPutStrLn h "{-# COMPILED_EXPORT metaProg metaProg #-}"
+  hPutStrLn h [i|
+module #{dropExtension (takeFileName file)} where
+open import ToCore
+open import CoreSyn
+open import HelloWorld
+open import DeriveEq
+metaProg : ToCoreM CoreExpr
+metaProg = toCore (#{code})
+{-# COMPILED_EXPORT metaProg metaProg #-}
+|]
   hClose h
   f file
 

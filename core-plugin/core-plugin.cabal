@@ -65,6 +65,7 @@ library
                      , ghc
                      , ghc-prim
                      , hint
+                     , interpolate
                      , process
                      , template-haskell
                      , temporary
