@@ -30,8 +30,12 @@ type PassWithGuts = ModGuts -> CoreProgram -> CoreM CoreProgram
 
 runMetaProgram :: ModGuts -> AgdaCode -> CoreM CoreExpr
 runMetaProgram guts code = do
+  flags <- getDynFlags
+  -- TODO why do we need the [] argument here?
+  let pkgDBs   = extraPkgConfs flags []
+      packages = preloadPackages (pkgState flags)
   toCore <- liftIO $ withAgdaFile code $
-            flip withHsFile loadCompiledMetaProgram
+            flip (withHsFile pkgDBs) (loadCompiledMetaProgram pkgDBs packages)
   runToCoreM guts toCore
 
 
@@ -55,7 +59,6 @@ metaProg = toCore (#{code})
 -- TODO how to pass these? use [CommandLineOption]
 agdaExecutable = "agda"
 preludePath = "/home/thomasw/.cabal-sandboxes/Agda-Core/agda-prelude/src"
-sandboxPath = "/home/thomasw/Dropbox/Core/Agda/.cabal-sandbox/x86_64-linux-ghc-7.8.4-packages.conf.d"
 libPath = "/home/thomasw/Dropbox/Core/Agda/core-plugin/src"
 
 -- For debugging
@@ -66,22 +69,24 @@ withSystemTempDirectory :: FilePath -> (FilePath -> IO a) -> IO a
 withSystemTempDirectory folderName f = f ("/tmp" </> folderName)
 
 
-withHsFile :: FilePath -> (FilePath -> IO a) -> IO a
-withHsFile agdaFile f = withSystemTempDirectory "dist" $ \compileDir -> do
-  (code, stdout, stderr)
-    <- readProcessWithExitCode agdaExecutable
-       [ "-c", "--no-main", "--compile-dir=" ++ compileDir
-       , "--ghc-flag=-package ghc"
-       , "--ghc-flag=-package-db=" ++ sandboxPath
-       , "-i", preludePath, "-i", libPath, "-i", takeDirectory agdaFile
-       , agdaFile
-       ] ""
-  case code of
-    -- TODO extract this path munging
-    ExitSuccess   -> let dir = compileDir </> "MAlonzo" </> "Code"
-                         file = replaceExtension (takeFileName agdaFile) ".hs"
-                     in f (dir </> file)
-    ExitFailure _ -> throwIO (CompilationException stdout stderr)
+withHsFile :: [PkgConfRef] -> FilePath -> (FilePath -> IO a) -> IO a
+withHsFile pkgDBs agdaFile f
+  = withSystemTempDirectory "dist" $ \compileDir -> do
+    (code, stdout, stderr)
+      <- readProcessWithExitCode agdaExecutable
+         ([ "-c", "--no-main", "--compile-dir=" ++ compileDir
+          , "--ghc-flag=-package ghc"
+          , "-i", preludePath, "-i", libPath, "-i", takeDirectory agdaFile
+          , agdaFile
+          ] ++
+          ["--ghc-flag=-package-db=" ++ dbPath | PkgConfFile dbPath <- pkgDBs])
+         ""
+    case code of
+      -- TODO extract this path munging
+      ExitSuccess   -> let dir = compileDir </> "MAlonzo" </> "Code"
+                           file = replaceExtension (takeFileName agdaFile) ".hs"
+                       in f (dir </> file)
+      ExitFailure _ -> throwIO (CompilationException stdout stderr)
 
 data CompilationException
   = CompilationException
@@ -94,8 +99,9 @@ instance Show CompilationException where
 
 instance Exception CompilationException
 
-loadCompiledMetaProgram :: FilePath -> IO (ToCoreM CoreExpr)
-loadCompiledMetaProgram hsFile = do
+loadCompiledMetaProgram :: [PkgConfRef] -> [PackageId] -> FilePath
+                        -> IO (ToCoreM CoreExpr)
+loadCompiledMetaProgram pkgDBs pkgs hsFile = do
   errMetaProg <- unsafeRunInterpreterWithArgs args $ do
     loadModules [hsFile]
     setImports ["MAlonzo.Code.AgdaSplice", "ToCoreM", "GhcPlugins"]
@@ -104,11 +110,8 @@ loadCompiledMetaProgram hsFile = do
     interpret "metaProg" undefined
   either throwIO return errMetaProg
   where
-    -- TODO extract these
-    args = [ "-package-db=" ++ sandboxPath
-           , "-package agda-ffi-0.1"
-           , "-package ghc-7.8.4"
-           ]
+    args = ["-package-db=" ++ dbPath | PkgConfFile dbPath <- pkgDBs] ++
+           ["-package " ++ packageIdString pkg | pkg <- pkgs]
 
 -- The steps to splice a meta-program invocation:
 
@@ -132,7 +135,6 @@ plugin :: Plugin
 plugin = defaultPlugin {
   installCoreToDos = install
 }
-
 
 bindsOnlyPassWithGuts :: PassWithGuts -> ModGuts -> CoreM ModGuts
 bindsOnlyPassWithGuts pass guts
