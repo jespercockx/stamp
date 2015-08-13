@@ -137,7 +137,10 @@ loadCompiledMetaProgram (InvocationInfo { pkgDBs, pkgs }) hsFile = do
     interpret "metaProg" undefined
   either throwIO return errMetaProg
   where
-    args = ("-i" ++ "/tmp/dist/") : -- TODO derive from hsFile
+    -- Remove directories (and first the filename) until we're in the folder
+    -- containing the MAlonzo subdirectory, e.g. /tmp/dist/
+    rootDir = Path.joinPath $ takeWhile (/= "MAlonzo/") $ Path.splitPath hsFile
+    args = ("-i" ++ rootDir) :
            "-fno-warn-overlapping-patterns" :
            ["-package-db=" ++ dbPath | PkgConfFile dbPath <- pkgDBs] ++
            ["-package " ++ packageIdString pkg | pkg <- pkgs]
