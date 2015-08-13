@@ -15,7 +15,9 @@ import           Data.String.Interpolate (i)
 import           GhcPlugins
 import           Language.Haskell.Interpreter (setImports, loadModules, interpret)
 import           Language.Haskell.Interpreter.Unsafe (unsafeRunInterpreterWithArgs)
-import           System.FilePath (dropExtension, replaceExtension, takeFileName, takeDirectory, (</>))
+import           System.FilePath ((</>))
+import qualified System.FilePath as Path
+
 --import           System.IO.Temp (withSystemTempFile, withSystemTempDirectory)
 import           System.Process (readProcessWithExitCode)
 
@@ -71,7 +73,7 @@ withAgdaFile :: AgdaCode -> (FilePath -> IO a) -> IO a
 withAgdaFile code f = withSystemTempFile "AgdaSplice.agda" $ \file h -> do
   -- TODO which imports?
   hPutStrLn h [i|
-module #{dropExtension (takeFileName file)} where
+module #{Path.dropExtension (Path.takeFileName file)} where
 open import ToCore
 open import CoreSyn
 open import HelloWorld
@@ -100,16 +102,17 @@ withHsFile (InvocationInfo { pkgDBs, agdaIncludeDirs }) agdaFile f
       <- readProcessWithExitCode "agda" -- This can be overriden using the PATH
          ([ "-c", "--no-main", "--compile-dir=" ++ compileDir
           , "--ghc-flag=-package ghc", "--ghc-flag=-dynamic"
-          , "-i", takeDirectory agdaFile, agdaFile ] ++
+          , "-i", Path.takeDirectory agdaFile, agdaFile ] ++
           concat [ ["-i", dir] | dir <- agdaIncludeDirs ] ++
           [ "--ghc-flag=-package-db=" ++ dbPath
           | PkgConfFile dbPath <- pkgDBs])
          "" -- empty stdin
     case code of
       -- TODO extract this path munging
-      ExitSuccess   -> let dir = compileDir </> "MAlonzo" </> "Code"
-                           file = replaceExtension (takeFileName agdaFile) ".hs"
-                       in f (dir </> file)
+      ExitSuccess   ->
+        let dir = compileDir </> "MAlonzo" </> "Code"
+            file = Path.replaceExtension (Path.takeFileName agdaFile) ".hs"
+        in f (dir </> file)
       ExitFailure _ -> throwIO (CompilationException stdout stderr)
 
 data CompilationException
