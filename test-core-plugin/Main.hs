@@ -1,7 +1,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 module Main where
 
---import Data
+import Data
 import Quoter
 
 
@@ -36,8 +36,8 @@ main = -- do
 --   Bar b -> "Bar" ++ show b
 
 
--- eqFoo :: Foo -> Foo -> Bool
--- eqFoo = [agda| eqFoo |]
+eqFoo :: Foo -> Foo -> Bool
+eqFoo = [agda| `eqFoo` |]
 -- eqFoo f1 f2 = case (f1, f2) of
 --   (Barry, Barry)   -> True
 --   (Bar b1, Bar b2) -> b1 == b2

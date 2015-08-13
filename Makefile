@@ -1,15 +1,11 @@
-ADGA_PRELUDE := /home/jesper/agda-prelude/src
+ADGA_PRELUDE := /home/thomasw/.cabal-sandboxes/Agda-Core/agda-prelude/src
 
-all: utils plugin test
+all: plugin test
 
 sandbox:
 	cabal sandbox init
-	cp cabal.sandbox.config utils/
 	cp cabal.sandbox.config core-plugin/
 	cp cabal.sandbox.config test-core-plugin/
-
-utils:
-	(cd utils; cabal clean; cabal install -j --force-reinstalls)
 
 plugin:
 	(cd core-plugin; cabal clean; \
@@ -19,4 +15,4 @@ test:
 	(cd test-core-plugin; cabal clean; cabal -j1 run)
 
 
-.PHONY: utils plugin test
+.PHONY: plugin test

@@ -11,66 +11,34 @@ author:              Thomas Winant
 maintainer:          thomas.winant@cs.kuleuven.be
 -- copyright:
 category:            Language
-build-type:          Custom
+build-type:          Simple
 -- extra-source-files:
 cabal-version:       >=1.10
 
 
 library
   hs-source-dirs:      src
-  exposed-modules:     InstallPlugin
-                     , Plugin
-                     , Plugin2
+  exposed-modules:     Plugin
+                     , Find
+                     , Quoter
                      , ShowCore
                      , Splice
-                     , Quoter
-                     , MAlonzo.Code.Plugin
-                     , MAlonzo.Code.CoreMonad
-                     , MAlonzo.Code.CoreSyn
-                     , MAlonzo.Code.TypedCore
-                     , MAlonzo.Code.ToCore
-                     , MAlonzo.Code.MyPrelude
-                     , MAlonzo.Code.MkPick
-                     , MAlonzo.Code.HelloWorld
-                     , MAlonzo.Code.DeriveEq
-                     , MAlonzo.Code.Data.Traversable
-                     , MAlonzo.Code.Data.Int
-                     , MAlonzo.Code.Data.List
-                     , MAlonzo.Code.Control.Monad.State
-                     , MAlonzo.Code.Control.Monad.Reader
-                     , MAlonzo.Code.Prelude.List
-                     , MAlonzo.Code.Prelude.Applicative
-                     , MAlonzo.Code.Prelude.Bool
-                     , MAlonzo.Code.Prelude.Ord
-                     , MAlonzo.Code.Prelude.Nat
-                     , MAlonzo.Code.Prelude.Nat.Core
-                     , MAlonzo.Code.Prelude.Number
-                     , MAlonzo.Code.Prelude.Empty
-                     , MAlonzo.Code.Prelude.Decidable
-                     , MAlonzo.Code.Prelude.Equality
-                     , MAlonzo.Code.Prelude.Equality.Unsafe
-                     , MAlonzo.Code.Prelude.Monad
-                     , MAlonzo.Code.Prelude.Product
-                     , MAlonzo.Code.Prelude.Semiring
-                     , MAlonzo.Code.Prelude.Vec
-                     , MAlonzo.Code.Prelude.Fin
-                     , MAlonzo.Code.Prelude.String
-                     , MAlonzo.Code.Prelude.Char
-                     , MAlonzo.RTE
+                     , ToCoreM
+                     , Typechecker
 
   build-depends:       agda-ffi
                      , base >=4.7 && <4.8
                      , bytestring
+                     , containers
                      , filepath
                      , ghc
                      , ghc-prim
                      , hint
                      , interpolate
+                     , mtl
                      , process
                      , template-haskell
                      , temporary
                      , text
                      , uniplate
-                     , utils
-  build-tools:         agda
   default-language:    Haskell2010

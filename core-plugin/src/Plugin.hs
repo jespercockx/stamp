@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE QuasiQuotes #-}
-module Plugin2
+module Plugin
        ( CompilationException
        , plugin
        ) where
@@ -59,9 +59,9 @@ metaProg = toCore (#{code})
 -- TODO how to pass these? use [CommandLineOption]
 agdaExecutable = "agda"
 preludePath = "/home/thomasw/.cabal-sandboxes/Agda-Core/agda-prelude/src"
-libPath = "/home/thomasw/Dropbox/Core/Agda/core-plugin/src"
+libPath = "/home/thomasw/Dropbox/Core/Agda/stamp/src"
 
--- For debugging
+-- TODO remove this two functions, they're for debugging purposes
 withSystemTempFile fileName f = withFile file WriteMode (f file)
   where file = "/tmp" </> fileName
 
@@ -75,7 +75,7 @@ withHsFile pkgDBs agdaFile f
     (code, stdout, stderr)
       <- readProcessWithExitCode agdaExecutable
          ([ "-c", "--no-main", "--compile-dir=" ++ compileDir
-          , "--ghc-flag=-package ghc"
+          , "--ghc-flag=-package ghc", "--ghc-flag=-dynamic"
           , "-i", preludePath, "-i", libPath, "-i", takeDirectory agdaFile
           , agdaFile
           ] ++
@@ -110,7 +110,9 @@ loadCompiledMetaProgram pkgDBs pkgs hsFile = do
     interpret "metaProg" undefined
   either throwIO return errMetaProg
   where
-    args = ["-package-db=" ++ dbPath | PkgConfFile dbPath <- pkgDBs] ++
+    args = ("-i" ++ "/tmp/dist/") : -- TODO derive from hsFile
+           "-fno-warn-overlapping-patterns" :
+           ["-package-db=" ++ dbPath | PkgConfFile dbPath <- pkgDBs] ++
            ["-package " ++ packageIdString pkg | pkg <- pkgs]
 
 -- The steps to splice a meta-program invocation:

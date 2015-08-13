@@ -6,6 +6,8 @@ open import Prelude.Applicative public
 open import Prelude.Unit using (Unit; tt) public
 open import Prelude.String using (String)
 
+{-# IMPORT GhcPlugins #-}
+
 postulate
   CoreM      : Set → Set
   putMsgS    : String → CoreM Unit
