@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE NamedFieldPuns #-}
 module Plugin
        ( CompilationException
        , plugin
@@ -27,21 +28,49 @@ import           ToCoreM (ToCoreM, runToCoreM)
 
 type PassWithGuts = ModGuts -> CoreProgram -> CoreM CoreProgram
 
+data InvocationInfo =
+  InvocationInfo
+  { pkgDBs :: [PkgConfRef]
+    -- ^ Package databases of the current GHC instance.
+  , pkgs   :: [PackageId]
+    -- ^ Packages laoded by the current GHC instance.
+  , agdaIncludeDirs :: [FilePath]
+    -- ^ Directories containing Agda code to pass using -i to the Agda
+    -- compiler.
+  }
+
+getInvocationInfo :: CoreM InvocationInfo
+getInvocationInfo = do
+  flags <- getDynFlags
+  -- TODO why do we need the [] argument here?
+  return $ InvocationInfo
+    { pkgDBs = extraPkgConfs flags []
+    , pkgs = preloadPackages (pkgState flags)
+    -- TODO extract the via the [CommandLineOption]
+    , agdaIncludeDirs = [
+           "/home/thomasw/.cabal-sandboxes/Agda-Core/agda-prelude/src"
+         , "/home/thomasw/Dropbox/Core/Agda/stamp/src"
+         ]
+    }
+
+
+-- Usually, a monad stack including a ReaderT of InvocationInfo would be used
+-- to pass InvocationInfo around, but this becomes unpractical because of all
+-- the continuation-passing style functions we're using, i.e.
+-- withSystemTempFile, ..., which all take a (_ -> IO _) argument (instead of
+-- using MonadIO). Therefore, we pass InvocationInfo around manually.
 
 runMetaProgram :: ModGuts -> AgdaCode -> CoreM CoreExpr
 runMetaProgram guts code = do
-  flags <- getDynFlags
-  -- TODO why do we need the [] argument here?
-  let pkgDBs   = extraPkgConfs flags []
-      packages = preloadPackages (pkgState flags)
+  info   <- getInvocationInfo
   toCore <- liftIO $ withAgdaFile code $
-            flip (withHsFile pkgDBs) (loadCompiledMetaProgram pkgDBs packages)
+            flip (withHsFile info) (loadCompiledMetaProgram info)
   runToCoreM guts toCore
 
 
 withAgdaFile :: AgdaCode -> (FilePath -> IO a) -> IO a
 withAgdaFile code f = withSystemTempFile "AgdaSplice.agda" $ \file h -> do
-  -- TODO cleaner to splice
+  -- TODO which imports?
   hPutStrLn h [i|
 module #{dropExtension (takeFileName file)} where
 open import ToCore
@@ -56,10 +85,6 @@ metaProg = toCore (#{code})
   f file
 
 
--- TODO how to pass these? use [CommandLineOption]
-agdaExecutable = "agda"
-preludePath = "/home/thomasw/.cabal-sandboxes/Agda-Core/agda-prelude/src"
-libPath = "/home/thomasw/Dropbox/Core/Agda/stamp/src"
 
 -- TODO remove this two functions, they're for debugging purposes
 withSystemTempFile fileName f = withFile file WriteMode (f file)
@@ -69,18 +94,18 @@ withSystemTempDirectory :: FilePath -> (FilePath -> IO a) -> IO a
 withSystemTempDirectory folderName f = f ("/tmp" </> folderName)
 
 
-withHsFile :: [PkgConfRef] -> FilePath -> (FilePath -> IO a) -> IO a
-withHsFile pkgDBs agdaFile f
+withHsFile :: InvocationInfo -> FilePath -> (FilePath -> IO a) -> IO a
+withHsFile (InvocationInfo { pkgDBs, agdaIncludeDirs }) agdaFile f
   = withSystemTempDirectory "dist" $ \compileDir -> do
     (code, stdout, stderr)
-      <- readProcessWithExitCode agdaExecutable
+      <- readProcessWithExitCode "agda" -- This can be overriden using the PATH
          ([ "-c", "--no-main", "--compile-dir=" ++ compileDir
           , "--ghc-flag=-package ghc", "--ghc-flag=-dynamic"
-          , "-i", preludePath, "-i", libPath, "-i", takeDirectory agdaFile
-          , agdaFile
-          ] ++
-          ["--ghc-flag=-package-db=" ++ dbPath | PkgConfFile dbPath <- pkgDBs])
-         ""
+          , "-i", takeDirectory agdaFile, agdaFile ] ++
+          concat [ ["-i", dir] | dir <- agdaIncludeDirs ] ++
+          [ "--ghc-flag=-package-db=" ++ dbPath
+          | PkgConfFile dbPath <- pkgDBs])
+         "" -- empty stdin
     case code of
       -- TODO extract this path munging
       ExitSuccess   -> let dir = compileDir </> "MAlonzo" </> "Code"
@@ -99,9 +124,9 @@ instance Show CompilationException where
 
 instance Exception CompilationException
 
-loadCompiledMetaProgram :: [PkgConfRef] -> [PackageId] -> FilePath
+loadCompiledMetaProgram :: InvocationInfo -> FilePath
                         -> IO (ToCoreM CoreExpr)
-loadCompiledMetaProgram pkgDBs pkgs hsFile = do
+loadCompiledMetaProgram (InvocationInfo { pkgDBs, pkgs }) hsFile = do
   errMetaProg <- unsafeRunInterpreterWithArgs args $ do
     loadModules [hsFile]
     setImports ["MAlonzo.Code.AgdaSplice", "ToCoreM", "GhcPlugins"]
