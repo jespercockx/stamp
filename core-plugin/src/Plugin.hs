@@ -39,20 +39,19 @@ data InvocationInfo =
     -- compiler.
   }
 
-getInvocationInfo :: CoreM InvocationInfo
-getInvocationInfo = do
+getIncludeDirsFromOptions :: [CommandLineOption] -> [FilePath]
+getIncludeDirsFromOptions = id -- This suffices at the moment
+
+
+getInvocationInfo :: [CommandLineOption] -> CoreM InvocationInfo
+getInvocationInfo options = do
   flags <- getDynFlags
   -- TODO why do we need the [] argument here?
   return $ InvocationInfo
     { pkgDBs = extraPkgConfs flags []
     , pkgs = preloadPackages (pkgState flags)
-    -- TODO extract the via the [CommandLineOption]
-    , agdaIncludeDirs = [
-           "/home/thomasw/.cabal-sandboxes/Agda-Core/agda-prelude/src"
-         , "/home/thomasw/Dropbox/Core/Agda/stamp/src"
-         ]
+    , agdaIncludeDirs = getIncludeDirsFromOptions options
     }
-
 
 -- Usually, a monad stack including a ReaderT of InvocationInfo would be used
 -- to pass InvocationInfo around, but this becomes unpractical because of all
@@ -60,9 +59,9 @@ getInvocationInfo = do
 -- withSystemTempFile, ..., which all take a (_ -> IO _) argument (instead of
 -- using MonadIO). Therefore, we pass InvocationInfo around manually.
 
-runMetaProgram :: ModGuts -> AgdaCode -> CoreM CoreExpr
-runMetaProgram guts code = do
-  info   <- getInvocationInfo
+runMetaProgram :: [CommandLineOption] -> ModGuts -> AgdaCode -> CoreM CoreExpr
+runMetaProgram options guts code = do
+  info   <- getInvocationInfo options
   toCore <- liftIO $ withAgdaFile code $
             flip (withHsFile info) (loadCompiledMetaProgram info)
   runToCoreM guts toCore
@@ -155,7 +154,7 @@ loadCompiledMetaProgram (InvocationInfo { pkgDBs, pkgs }) hsFile = do
 
 agdaMetaPass :: [CommandLineOption] -> ModGuts
              -> CoreProgram -> CoreM CoreProgram
-agdaMetaPass _options guts = spliceAgda (runMetaProgram guts)
+agdaMetaPass options guts = spliceAgda (runMetaProgram options guts)
 
 
 plugin :: Plugin

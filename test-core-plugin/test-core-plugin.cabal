@@ -25,4 +25,9 @@ executable Main
    -- TODO get rid of ghc-prim dependency
   -- hs-source-dirs:
   default-language:    Haskell2010
-  ghc-options:         -fplugin Plugin -fforce-recomp -ddump-simpl -dsuppress-module-prefixes -dsuppress-idinfo -dcore-lint -ddump-to-file -ddump-splices
+  ghc-options:         -fplugin Plugin
+                       -fplugin-opt Plugin:/home/thomasw/.cabal-sandboxes/Agda-Core/agda-prelude/src
+                       -fplugin-opt Plugin:/home/thomasw/Dropbox/Core/Agda/stamp/src
+                       -fforce-recomp -ddump-simpl -ddump-to-file -ddump-splices
+                       -dsuppress-module-prefixes -dsuppress-idinfo
+                       -dcore-lint
