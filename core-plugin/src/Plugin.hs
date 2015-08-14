@@ -61,9 +61,8 @@ getInvocationInfo options = do
 -- withSystemTempFile, ..., which all take a (_ -> IO _) argument (instead of
 -- using MonadIO). Therefore, we pass InvocationInfo around manually.
 
-runMetaProgram :: [CommandLineOption] -> ModGuts -> AgdaCode -> CoreM CoreExpr
-runMetaProgram options guts code = do
-  info   <- getInvocationInfo options
+runMetaProgram :: InvocationInfo -> ModGuts -> AgdaCode -> CoreM CoreExpr
+runMetaProgram info guts code = do
   toCore <- liftIO $ withAgdaFile code $
             flip (withHsFile info) (loadCompiledMetaProgram info)
   runToCoreM guts toCore
@@ -87,7 +86,7 @@ metaProg = toCore (#{code})
 
 
 
--- TODO remove this two functions, they're for debugging purposes
+-- TODO remove these two functions, they're for debugging purposes
 withSystemTempFile fileName f = withFile file WriteMode (f file)
   where file = "/tmp" </> fileName
 
@@ -160,7 +159,9 @@ loadCompiledMetaProgram (InvocationInfo { pkgDBs, pkgs }) hsFile = do
 
 agdaMetaPass :: [CommandLineOption] -> ModGuts
              -> CoreProgram -> CoreM CoreProgram
-agdaMetaPass options guts = spliceAgda (runMetaProgram options guts)
+agdaMetaPass options guts prog = do
+  info <- getInvocationInfo options
+  spliceAgda (runMetaProgram info guts) prog
 
 
 plugin :: Plugin
