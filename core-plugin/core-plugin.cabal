@@ -30,6 +30,7 @@ library
                      , base >=4.7 && <4.8
                      , bytestring
                      , containers
+                     , directory
                      , filepath
                      , ghc
                      , ghc-prim
@@ -38,7 +39,6 @@ library
                      , mtl
                      , process
                      , template-haskell
-                     , temporary
                      , text
                      , uniplate
   default-language:    Haskell2010
