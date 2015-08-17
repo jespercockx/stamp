@@ -2,10 +2,7 @@ module HelloWorld where
 
 open import MyPrelude hiding (_≤_; _<_; _$_; [_]; Show; show)
 open import TypedCore
-open import CoreSyn
-  using (mkMachChar; mkMachString; charTyCon;
-         listTyCon; unitTyCon; boolTyCon;
-         tcNameSpace; varNameSpace; dataNameSpace; clsNameSpace)
+open import CoreSyn using (mkMachChar; mkMachString)
 
 postulate
   `String#` : ∀ {Σ} → Type Σ ∗
