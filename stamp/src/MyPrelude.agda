@@ -1,6 +1,6 @@
 module MyPrelude where
 
-open import Prelude hiding (trans; reverse) public
+open import Prelude hiding (reverse) renaming (sym to ≡-sym; trans to ≡-trans) public
 open import Builtin.Size public
 open import Control.Monad.Reader public
 open import Control.Monad.Trans public
@@ -326,6 +326,66 @@ xs ⊈ ys = ¬ (xs ⊆ ys)
     ⊆-+++-suffix′ {xs = xs} p q with ∈-+++ {xs = xs} q
     ⊆-+++-suffix′ p q | left r = ∈-+++-prefix (p r)
     ⊆-+++-suffix′ {ys = ys} p q | right r = ∈-+++-suffix {ys = ys} r
+
+∈-over-⊆-trans : ∀ {A : Set} {Σ₁ Σ₂ Σ₃ : List A} {κ} → (p : Σ₁ ⊆ Σ₂) → (q : Σ₂ ⊆ Σ₃) →
+                   (i : κ ∈ Σ₁) →
+                   (∈-over-⊆ q (∈-over-⊆ p i)) ≡ (∈-over-⊆ (⊆-trans p q) i)
+∈-over-⊆-trans (p ∷ ps) q hd = refl
+∈-over-⊆-trans (p ∷ ps) q (tl i) = ∈-over-⊆-trans ps q i
+
+∈-over-⊆-skip : ∀ {A : Set} {Σ₁ Σ₂ : List A} {κ₁ κ₂ : A} → (p : κ₁ ∈ Σ₁) → (q : Σ₁ ⊆ Σ₂) →
+                ∈-over-⊆ (⊆-skip q) p ≡ tl {y = κ₂} (∈-over-⊆ q p)
+∈-over-⊆-skip {Σ₁ = κ₁ ∷ Σ₁} hd (q₁ ∷ q₂) = refl
+∈-over-⊆-skip {Σ₁ = _ ∷ Σ₁} (tl p) (q₁ ∷ q₂) = ∈-over-⊆-skip p q₂
+
+⊆-skip-⊆-trans : ∀ {A : Set} {Σ₁ Σ₂ Σ₃ : List A} {κ} → (p : Σ₁ ⊆ Σ₂) → (q : Σ₂ ⊆ Σ₃) →
+                   ⊆-trans (⊆-skip  {x = κ} p) (hd ∷ ⊆-skip q)
+                   ≡ ⊆-skip (⊆-trans p q)
+⊆-skip-⊆-trans [] q = refl
+⊆-skip-⊆-trans (p ∷ ps) q = cong₂ _∷_ (∈-over-⊆-skip p q) (⊆-skip-⊆-trans ps q)
+
+∈-over-skip : ∀ {A : Set} {Σ₁ Σ₂ : List A} {κ₁ κ₂} → (p : Σ₁ ⊆ Σ₂) (q : κ₁ ∈ Σ₁) →
+      tl {y = κ₂} {xs = Σ₂} (∈-over-⊆ p q) ≡ ∈-over-⊆ (⊆-skip p) q
+∈-over-skip (p ∷ ps) hd = refl
+∈-over-skip (p ∷ ps) (tl q) = ∈-over-skip ps q
+
+∈-over-refl : ∀ {A : Set} {Σ : List A} {κ} → (p : κ ∈ Σ) → p ≡ ∈-over-⊆ ⊆-refl p
+∈-over-refl {Σ = []} ()
+∈-over-refl {Σ = x ∷ Σ} hd = refl
+∈-over-refl {Σ = x ∷ Σ} (tl p) = ≡-trans (cong tl (∈-over-refl p)) (∈-over-skip ⊆-refl p)
+
+⊆-trans-⊆-skip₁ : ∀ {A : Set} {Σ₁ Σ₂ Σ₃ : List A} {κ} (p : Σ₁ ⊆ Σ₂) (q : κ ∷ Σ₂ ⊆ Σ₃) →
+  ⊆-trans (⊆-skip p) q ≡ ⊆-trans p (tailAll q)
+⊆-trans-⊆-skip₁ [] _ = refl
+⊆-trans-⊆-skip₁ (p ∷ ps) (q ∷ qs) = cong₂ _∷_ refl (⊆-trans-⊆-skip₁ ps (q ∷ qs))
+
+⊆-trans-⊆-skip₂ : ∀ {A : Set} {Σ₁ Σ₂ Σ₃ : List A} {κ} (p : Σ₁ ⊆ Σ₂) (q : Σ₂ ⊆ Σ₃) →
+  ⊆-trans p (⊆-skip {x = κ} q) ≡ ⊆-skip {x = κ} (⊆-trans p q)
+⊆-trans-⊆-skip₂ [] q = refl
+⊆-trans-⊆-skip₂ (p ∷ ps) q = cong₂ _∷_ (∈-over-⊆-skip p q) (⊆-trans-⊆-skip₂ ps q)
+
+⊆-trans-⊆-refl₁ : ∀ {A : Set} {Σ₁ Σ₂ : List A} → (p : Σ₁ ⊆ Σ₂) → ⊆-trans ⊆-refl p ≡ p
+⊆-trans-⊆-refl₁ [] = refl
+⊆-trans-⊆-refl₁ (p ∷ ps) =
+  cong₂ _∷_ refl (≡-trans (⊆-trans-⊆-skip₁ ⊆-refl (p ∷ ps)) (⊆-trans-⊆-refl₁ ps))
+
+⊆-trans-⊆-refl₂ : ∀ {A : Set} {Σ₁ Σ₂ : List A} → (p : Σ₁ ⊆ Σ₂) → ⊆-trans p ⊆-refl ≡ p
+⊆-trans-⊆-refl₂ [] = refl
+⊆-trans-⊆-refl₂ (p ∷ ps) = cong₂ _∷_ (≡-sym (∈-over-refl p)) (⊆-trans-⊆-refl₂ ps)
+
+⊆-trans-⊆-skip-⊆-refl : ∀ {A : Set} {Σ₁ Σ₂ : List A} {κ : A} → (p : Σ₁ ⊆ Σ₂) →
+      ⊆-trans (⊆-skip {x = κ} ⊆-refl) (hd ∷ ⊆-skip p) ≡
+      ⊆-trans p (⊆-skip ⊆-refl)
+⊆-trans-⊆-skip-⊆-refl {Σ₁} {Σ₂} {κ} p =
+  ⊆-trans (⊆-skip ⊆-refl) (hd ∷ ⊆-skip p)
+    ≡⟨ ⊆-trans-⊆-skip₁ ⊆-refl _ ⟩
+  ⊆-trans ⊆-refl (⊆-skip p)
+    ≡⟨ ⊆-trans-⊆-refl₁ _ ⟩
+  ⊆-skip p
+    ≡⟨ cong ⊆-skip (⊆-trans-⊆-refl₂ _) ⟩ʳ
+  ⊆-skip (⊆-trans p ⊆-refl)
+    ≡⟨ ⊆-trans-⊆-skip₂ _ _ ⟩ʳ
+  ⊆-trans p (⊆-skip ⊆-refl) ∎
 
 ⊆-map-inj : ∀ {A B : Set} {xs ys : List A} {f : A → B} →
               xs ⊆ ys → map f xs ⊆ map f ys
