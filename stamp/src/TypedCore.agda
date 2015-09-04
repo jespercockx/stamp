@@ -183,8 +183,7 @@ TySubst : TyCxt → TyCxt → Set
 TySubst Σ₁ Σ₂ = Types Σ₂ Σ₁
 
 WeakenS : ∀ {Σ₁ Σ₂} → Σ₁ ⊆ Σ₂ → TySubst Σ₁ Σ₂
-WeakenS [] = []
-WeakenS (p ∷ ps) = tvar p ∷ WeakenS ps
+WeakenS = mapAll tvar
 
 IdS : ∀ {Σ} → TySubst Σ Σ
 IdS = WeakenS ⊆-refl
@@ -212,6 +211,10 @@ ShiftS = mapAll shift
 LiftS : ∀ {Σ₁ Σ₂ κ} → TySubst Σ₁ Σ₂ → TySubst (κ ∷ Σ₁) (κ ∷ Σ₂)
 LiftS sub = tvar hd ∷ ShiftS sub
 
+LiftS-n : ∀ {Σ₁ Σ₂} Σ₃ → TySubst Σ₁ Σ₂ → TySubst (Σ₃ ++ Σ₁) (Σ₃ ++ Σ₂)
+LiftS-n [] sub = sub
+LiftS-n (_ ∷ Σ₃) sub = LiftS (LiftS-n Σ₃ sub)
+
 lookupTySubst : ∀ {Σ₁ Σ₂ κ} → TySubst Σ₁ Σ₂ → κ ∈ Σ₁ → Type Σ₂ κ
 lookupTySubst = ∈-All
 
@@ -222,6 +225,31 @@ applyTySubst sub (τ₁ ⇒ τ₂) = applyTySubst sub τ₁ ⇒ applyTySubst sub
 applyTySubst sub (forAll κ τ) = forAll κ (applyTySubst (LiftS sub) τ)
 applyTySubst sub (con c) = con c
 applyTySubst sub (lit l) = lit l
+
+applyTySubst-ext : ∀ {Σ₁ Σ₂}  → (ps ps′ : TySubst Σ₁ Σ₂) →
+  (∀ {κ} (x : κ ∈ Σ₁) → lookupTySubst ps x ≡ lookupTySubst ps′ x) →
+  ∀ {κ} (τ : Type Σ₁ κ) → applyTySubst ps τ ≡ applyTySubst ps′ τ
+applyTySubst-ext ps ps′ eq (tvar x) = eq x
+applyTySubst-ext ps ps′ eq (τ $ τ₁) =
+  cong₂ _$_ (applyTySubst-ext ps ps′ eq τ)
+  (applyTySubst-ext ps ps′ eq τ₁)
+applyTySubst-ext ps ps′ eq (τ ⇒ τ₁) =
+  cong₂ _⇒_ (applyTySubst-ext ps ps′ eq τ)
+    (applyTySubst-ext ps ps′ eq τ₁)
+applyTySubst-ext {Σ₁} ps ps′ eq (forAll κ τ) =
+  cong (forAll κ) (applyTySubst-ext (LiftS ps) (LiftS ps′) eq′ τ)
+  where eq′ : ∀ {κ′} (x : κ′ ∈ (κ ∷ Σ₁)) → lookupTySubst (LiftS ps) x ≡ lookupTySubst (LiftS ps′) x
+        eq′ hd = refl
+        eq′ (tl x) = lookupTySubst (ShiftS ps) x
+                       ≡⟨ ∈-mapAll shift ps x ⟩
+                     shift (lookupTySubst ps x)
+                       ≡⟨ cong shift (eq x) ⟩
+                     shift (lookupTySubst ps′ x)
+                       ≡⟨ ≡-sym (∈-mapAll shift ps′ x) ⟩
+                     lookupTySubst (ShiftS ps′) x ∎
+applyTySubst-ext ps ps′ eq (con x) = refl
+applyTySubst-ext ps ps′ eq (lit x) = refl
+
 
 ComposeS : ∀ {Σ₁ Σ₂ Σ₃} → TySubst Σ₁ Σ₂ → TySubst Σ₂ Σ₃ → TySubst Σ₁ Σ₃
 ComposeS sub₁ sub₂ = mapAll (applyTySubst sub₂) sub₁

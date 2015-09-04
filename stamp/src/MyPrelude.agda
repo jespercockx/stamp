@@ -105,12 +105,25 @@ tl-inj refl = refl
 ∈2el : ∀ {A : Set} {x : A} {xs : List A} → x ∈ xs → A
 ∈2el {x = x} _ = x
 
+
+lift∈ : ∀ {A} {xs ys : List A} zs → (f : ∀ {x} → x ∈ xs → x ∈ ys) → ∀ {x} → x ∈ (zs ++ xs) → x ∈ (zs ++ ys)
+lift∈ [] f p = f p
+lift∈ (x ∷ zs) f hd = hd
+lift∈ (x ∷ zs) f (tl p) = tl (lift∈ zs f p)
+
+
 ∈-All : ∀ {A : Set} {P : A → Set} {xs x} → All P xs → x ∈ xs → P x
 ∈-All (p ∷ _) hd = p
 ∈-All (_ ∷ ps) (tl i) = ∈-All ps i
 
 tailAll : ∀ {A : Set} {P : A → Set} {x : A} {xs : List A} → All P (x ∷ xs) → All P xs
 tailAll (_ ∷ xs) = xs
+
+All-ext : ∀ {A : Set} {P : A → Set} {xs : List A} → {ps ps′ : All P xs} →
+          (∀ {x : A} (p : x ∈ xs) → ∈-All ps p ≡ ∈-All ps′ p) →
+          ps ≡ ps′
+All-ext {ps = []} {[]} hyp = refl
+All-ext {ps = p ∷ ps} {p′ ∷ ps′} hyp = cong₂ _∷_ (hyp hd) (All-ext (hyp ∘ tl))
 
 mapAll : ∀ {A : Set} {P Q : A → Set} (f : {x : A} → P x → Q x) {xs : List A} → All P xs → All Q xs
 mapAll f [] = []
@@ -120,6 +133,25 @@ mapAll f (x ∷ xs) = f x ∷ mapAll f xs
            (ps : All P xs) (i : x ∈ xs) → ∈-All (mapAll f ps) i ≡ f (∈-All ps i)
 ∈-mapAll f (p ∷ ps) hd = refl
 ∈-mapAll f (p ∷ ps) (tl i) = ∈-mapAll f ps i
+
+mapAll-mapAll : ∀ {A : Set} {P Q R : A → Set}
+  (f : {x : A} → P x → Q x)  (g : {x : A} → Q x → R x) →
+  ∀ {xs : List A} → (ps : All P xs) →
+  mapAll g (mapAll f ps) ≡ mapAll (g ∘ f) ps
+mapAll-mapAll f g [] = refl
+mapAll-mapAll f g (p ∷ ps) = cong₂ _∷_ refl (mapAll-mapAll f g ps)
+
+mapAll-cong : ∀ {A : Set} {P Q : A → Set} (f g : {x : A} → P x → Q x)
+  {xs : List A} → (∀ {x : A} (p : P x) → f p ≡ g p) →
+  (ps : All P xs) → mapAll f ps ≡ mapAll g ps
+mapAll-cong f g f≡g [] = refl
+mapAll-cong f g f≡g (p ∷ ps) = cong₂ _∷_ (f≡g _) (mapAll-cong f g f≡g ps)
+
+mapAll-id : ∀ {A : Set} {P : A → Set}
+  {xs : List A} → (ps : All P xs) → mapAll id ps ≡ ps
+mapAll-id [] = refl
+mapAll-id (p ∷ ps) = cong₂ _∷_ refl (mapAll-id ps)
+
 
 ∈-prefix : ∀ {A : Set} {x : A} {xs ys : List A} →
              x ∈ xs → x ∈ (ys ++ xs)
@@ -277,8 +309,7 @@ xs ⊈ ys = ¬ (xs ⊆ ys)
 ⊆-over-∈ {xs = _ ∷ xs} f = (f hd) ∷ (⊆-over-∈ (λ p → f (tl p)))
 
 ⊆-skip : ∀ {A : Set} {x : A} {xs ys : List A} → xs ⊆ ys → xs ⊆ (x ∷ ys)
-⊆-skip {xs = []} p = []
-⊆-skip {xs = x₁ ∷ xs} (p ∷ q) = (tl p) ∷ (⊆-skip q)
+⊆-skip p = mapAll tl p
 
 ⊆-refl : ∀ {A : Set} {xs : List A} → xs ⊆ xs
 ⊆-refl {xs = []} = []
@@ -295,6 +326,10 @@ xs ⊈ ys = ¬ (xs ⊆ ys)
 
 ⊆-keep : ∀ {A : Set} {x : A} {xs ys : List A} → xs ⊆ ys → (x ∷ xs) ⊆ (x ∷ ys)
 ⊆-keep p = hd ∷ (⊆-skip p)
+
+⊆-keep-n : ∀ {A : Set} {xs ys : List A} (zs : List A) → xs ⊆ ys → (zs ++ xs) ⊆ (zs ++ ys)
+⊆-keep-n [] p = p
+⊆-keep-n (_ ∷ zs) p = ⊆-keep (⊆-keep-n zs p)
 
 -- ⊆-trans : ∀ {A : Set} {xs ys zs : List A} → xs ⊆ ys → ys ⊆ zs → xs ⊆ zs
 -- ⊆-trans p q = ⊆-over-∈ (∈-over-⊆ q ∘ ∈-over-⊆ p)
@@ -335,8 +370,7 @@ xs ⊈ ys = ¬ (xs ⊆ ys)
 
 ∈-over-⊆-skip : ∀ {A : Set} {Σ₁ Σ₂ : List A} {κ₁ κ₂ : A} → (p : κ₁ ∈ Σ₁) → (q : Σ₁ ⊆ Σ₂) →
                 ∈-over-⊆ (⊆-skip q) p ≡ tl {y = κ₂} (∈-over-⊆ q p)
-∈-over-⊆-skip {Σ₁ = κ₁ ∷ Σ₁} hd (q₁ ∷ q₂) = refl
-∈-over-⊆-skip {Σ₁ = _ ∷ Σ₁} (tl p) (q₁ ∷ q₂) = ∈-over-⊆-skip p q₂
+∈-over-⊆-skip x ps = ∈-mapAll tl ps x
 
 ⊆-skip-⊆-trans : ∀ {A : Set} {Σ₁ Σ₂ Σ₃ : List A} {κ} → (p : Σ₁ ⊆ Σ₂) → (q : Σ₂ ⊆ Σ₃) →
                    ⊆-trans (⊆-skip  {x = κ} p) (hd ∷ ⊆-skip q)
@@ -346,8 +380,7 @@ xs ⊈ ys = ¬ (xs ⊆ ys)
 
 ∈-over-skip : ∀ {A : Set} {Σ₁ Σ₂ : List A} {κ₁ κ₂} → (p : Σ₁ ⊆ Σ₂) (q : κ₁ ∈ Σ₁) →
       tl {y = κ₂} {xs = Σ₂} (∈-over-⊆ p q) ≡ ∈-over-⊆ (⊆-skip p) q
-∈-over-skip (p ∷ ps) hd = refl
-∈-over-skip (p ∷ ps) (tl q) = ∈-over-skip ps q
+∈-over-skip ps x = ≡-sym (∈-over-⊆-skip x ps)
 
 ∈-over-refl : ∀ {A : Set} {Σ : List A} {κ} → (p : κ ∈ Σ) → p ≡ ∈-over-⊆ ⊆-refl p
 ∈-over-refl {Σ = []} ()
@@ -403,8 +436,3 @@ Fin∈allFin {zero} ()
 Fin∈allFin {suc n} zero = hd
 Fin∈allFin {suc n} (suc i) = tl (∈-map-inj (Fin∈allFin i))
 
-
-
-cong-× : ∀ {A B : Set} {a₁ a₂ : A} {b₁ b₂ : B} → a₁ ≡ a₂ → b₁ ≡ b₂ →
-           (a₁ , b₁) ≡ (a₂ , b₂)
-cong-× refl refl = refl
