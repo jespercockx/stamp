@@ -335,15 +335,23 @@ data ForeignVar (Σ : TyCxt) (τ : Type Σ ∗) : Set where
 data ForeignDict (Σ : TyCxt) (τ : Type Σ ∗) : Set where
   fdict : ForeignDict Σ τ
 
-lastAll : ∀ {A : Set} {P : A → Set} {xs : List A} {x : A} →
+lastAll : ∀ {A : Set} {P : A → Set} (xs : List A) {x : A} →
             All P (xs ++ x ∷ []) → All P xs × P x
-lastAll {xs = []} (p ∷ []) = [] , p
-lastAll {xs = x ∷ xs} (p ∷ all) with lastAll {xs = xs} all
+lastAll [] (p ∷ []) = [] , p
+lastAll (x ∷ xs) (p ∷ all) with lastAll xs all
 ... | all′ , p′ = (p ∷ all′) , p′
+
+lastAll-mapAll : ∀ {A : Set} {P Q : A → Set} (xs : List A) {x : A} →
+                 (f : ∀ {x} → P x → Q x) →
+                 (ps : All P (xs ++ x ∷ [])) → lastAll xs (mapAll f ps) ≡ (mapAll f *** f) (lastAll xs ps)
+lastAll-mapAll [] f (p ∷ []) = refl
+lastAll-mapAll (x ∷ xs) f (p ∷ all) rewrite lastAll-mapAll xs f all with lastAll xs all
+lastAll-mapAll (x ∷ xs) f (p ∷ all) | all′ , p′ = refl
+
 
 applyTyArgs : ∀ {Σ κ} → Type Σ κ → Types Σ (saturatedTyCxt κ) → Type Σ ∗
 applyTyArgs {κ = ∗} τ [] = τ
-applyTyArgs {Σ} {κ = κ ⇒ κ₁} τ τs with lastAll τs
+applyTyArgs {Σ} {κ = κ ⇒ κ₁} τ τs with lastAll _ τs
 ... | τs′ , τ₁ = applyTyArgs (τ $ τ₁) τs′
 
 tyConType : ∀ {κ} → (tc : TyCon κ) → Type (tyConCxt tc) ∗

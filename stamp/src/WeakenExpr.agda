@@ -206,7 +206,7 @@ lookup-var-keep : ∀ {A : Set} {Σ₁ : List A} Σ₂ {κ κ′}
                     lift∈ Σ₂ tl x
 lookup-var-keep [] x = lookup-skip-refl x
 lookup-var-keep (κ ∷ Σ₂) hd = refl
-lookup-var-keep (_ ∷ Σ₂) (tl x) = 
+lookup-var-keep (_ ∷ Σ₂) (tl x) =
   ∈-over-⊆ (⊆-keep (⊆-keep-n Σ₂ (⊆-skip ⊆-refl))) (tl x)
     ≡⟨ ∈-mapAll tl (⊆-keep-n Σ₂ (⊆-skip ⊆-refl)) x ⟩
   tl (∈-over-⊆ (⊆-keep-n Σ₂ (⊆-skip ⊆-refl)) x)
@@ -247,6 +247,11 @@ applyTySubst-LiftS-shift Σ₃ sub (τ ⇒ τ₁) = cong₂ _⇒_ (applyTySubst-
 applyTySubst-LiftS-shift Σ₃ sub (forAll κ τ) = cong (forAll κ) (applyTySubst-LiftS-shift (κ ∷ Σ₃) sub τ)
 applyTySubst-LiftS-shift Σ₃ sub (con x) = refl
 applyTySubst-LiftS-shift Σ₃ sub (lit x) = refl
+
+applyTySubst-LiftS-shift′ : ∀ {Σ₁ Σ₂} {κ′} (sub : TySubst Σ₁ Σ₂) {κ} (τ : Type Σ₁ κ) →
+                            applyTySubst (LiftS {κ = κ′} sub) (shift τ) ≡
+                            shift (applyTySubst sub τ)
+applyTySubst-LiftS-shift′ = applyTySubst-LiftS-shift []
 
 ComposeS-Lift : ∀ {Σ₁ Σ₂ Σ₃ κ} (sub₁ : TySubst Σ₁ Σ₂) (sub₂ : TySubst Σ₂ Σ₃) →
                 ComposeS (LiftS {κ = κ} sub₁) (LiftS sub₂) ≡
@@ -324,53 +329,47 @@ weakenType-substTop τ₁ τ₂ p =
   applyTySubst (weakenType τ₁ p ∷ IdS) (weakenType τ₂ (⊆-keep p)) ∎
 
 
--- -- weakenType-applyTySubst-wk
+-- properties of weakenCxt
+
+weakenCxt-applyTySubst :
+  ∀ {Σ₁ Σ₂ κ} {adt : ADT κ} {tyArgs : Types Σ₁ (ADT.tyCxt adt)}
+    (Γ : Cxt (ADT.tyCxt adt)) → (p : Σ₁ ⊆ Σ₂) →
+    weakenCxt (map (applyTySubst tyArgs) Γ) p
+    ≡ map (applyTySubst (weakenTypes tyArgs p)) Γ
+weakenCxt-applyTySubst [] p = refl
+weakenCxt-applyTySubst {adt = adt} {tyArgs} (τ ∷ Γ) p
+  rewrite weakenCxt-applyTySubst {adt = adt} {tyArgs} Γ p |
+          weakenType-applyTySubst tyArgs τ p = refl
+
+weakenCxt-weakenCxt :
+  ∀ {Σ₁ Σ₂ Σ₃} → (Γ : List (Type Σ₁ ∗)) →
+    (p : Σ₁ ⊆ Σ₂) → (q : Σ₂ ⊆ Σ₃) →
+    weakenCxt (weakenCxt Γ p) q ≡ weakenCxt Γ (⊆-trans p q)
+weakenCxt-weakenCxt Γ p q
+  rewrite compose-map Γ (flip weakenType p) (flip weakenType q) |
+          map-≡ {xs = Γ} _ _ (λ {τ} → weakenType-weakenType τ p q)
+          = refl
 
 
 
 
 
--- -- properties of weakenCxt
+-- properties of weakenPat
 
--- weakenCxt-applyTySubst :
---   ∀ {Σ₁ Σ₂ κ} {adt : ADT κ} {tyArgs : Types Σ₁ (ADT.tyCxt adt)}
---     (Γ : Cxt (ADT.tyCxt adt)) → (p : Σ₁ ⊆ Σ₂) →
---     weakenCxt (map (applyTySubst tyArgs) Γ) p
---     ≡ map (applyTySubst (weakenTypes tyArgs p)) Γ
--- weakenCxt-applyTySubst [] p = refl
--- weakenCxt-applyTySubst {adt = adt} {tyArgs} (τ ∷ Γ) p
---   rewrite weakenCxt-applyTySubst {adt = adt} {tyArgs} Γ p |
---           weakenType-applyTySubst tyArgs τ p = refl
+weakenCxt-patBinders :
+  ∀ {Σ₁ Σ₂ κ} {adt : ADT κ} {tyArgs : Types Σ₁ (ADT.tyCxt adt)}
+    (pat : Pat Σ₁ adt tyArgs) → (p : Σ₁ ⊆ Σ₂) →
+    weakenCxt (patBinders pat) p ≡ patBinders (weakenPat pat p)
+weakenCxt-patBinders ̺ p = refl
+weakenCxt-patBinders (lit x) p = refl
+weakenCxt-patBinders {adt = adt} (con dc) p
+  = weakenCxt-applyTySubst {adt = adt} (dataConArgs dc) p
 
--- weakenCxt-weakenCxt :
---   ∀ {Σ₁ Σ₂ Σ₃} → (Γ : List (Type Σ₁ ∗)) →
---     (p : Σ₁ ⊆ Σ₂) → (q : Σ₂ ⊆ Σ₃) →
---     weakenCxt (weakenCxt Γ p) q ≡ weakenCxt Γ (⊆-trans p q)
--- weakenCxt-weakenCxt Γ p q
---   rewrite compose-map Γ (flip weakenType p) (flip weakenType q) |
---           map-≡ {xs = Γ} _ _ (λ {τ} → weakenType-weakenType τ p q)
---           = refl
-
-
-
-
-
--- -- properties of weakenPat
-
--- weakenCxt-patBinders :
---   ∀ {Σ₁ Σ₂ κ} {adt : ADT κ} {tyArgs : Types Σ₁ (ADT.tyCxt adt)}
---     (pat : Pat Σ₁ adt tyArgs) → (p : Σ₁ ⊆ Σ₂) →
---     weakenCxt (patBinders pat) p ≡ patBinders (weakenPat pat p)
--- weakenCxt-patBinders ̺ p = refl
--- weakenCxt-patBinders (lit x) p = refl
--- weakenCxt-patBinders {adt = adt} (con dc) p
---   = weakenCxt-applyTySubst {adt = adt} (dataConArgs dc) p
-
--- ⊆-weakenCxt-patBinders :
---   ∀ {Σ₁ Σ₂ κ} {adt : ADT κ} {tyArgs : Types Σ₁ (ADT.tyCxt adt)}
---     (pat : Pat Σ₁ adt tyArgs) → (p : Σ₁ ⊆ Σ₂) →
---     weakenCxt (patBinders pat) p ⊆ patBinders (weakenPat pat p)
--- ⊆-weakenCxt-patBinders pat p rewrite weakenCxt-patBinders pat p = ⊆-refl
+⊆-weakenCxt-patBinders :
+  ∀ {Σ₁ Σ₂ κ} {adt : ADT κ} {tyArgs : Types Σ₁ (ADT.tyCxt adt)}
+    (pat : Pat Σ₁ adt tyArgs) → (p : Σ₁ ⊆ Σ₂) →
+    weakenCxt (patBinders pat) p ⊆ patBinders (weakenPat pat p)
+⊆-weakenCxt-patBinders pat p rewrite weakenCxt-patBinders pat p = ⊆-refl
 
 
 
@@ -380,151 +379,126 @@ weakenType-substTop τ₁ τ₂ p =
 
 
 
--- {-
+
 -- liftShiftS : ∀ {Σ₁ Σ₂ κ₁ κ₂ κ} → (sub : TySubst Σ₁ Σ₂) (τ : Type (κ₁ ∷ Σ₁) κ) →
 --                  applyTySubst (LiftS {κ = κ₁} (ShiftS {κ = κ₂} sub)) τ
 --                  ≡ weakenType (applyTySubst (LiftS sub) τ) (⊆-keep (⊆-skip ⊆-refl))
--- liftShiftS sub (tvar x) = {!!}
--- liftShiftS sub (τ $ τ₁) = {!!}
--- liftShiftS sub (τ ⇒ τ₁) = {!!}
--- liftShiftS sub (forAll κ τ) = {!!}
--- liftShiftS sub (con x) = {!!}
--- liftShiftS sub (lit x) = {!!}
+-- liftShiftS {Σ₁} {Σ₂} {κ₁} {κ₂} {κ} sub τ = applyTySubst (LiftS (ShiftS sub)) τ
+--                    ≡⟨ cong (flip applyTySubst τ) (All-ext lemma) ⟩
+--                    applyTySubst (weakenTypes (LiftS sub) (⊆-keep (⊆-skip ⊆-refl))) τ
+--                    ≡⟨ ≡-sym (weakenType-applyTySubst (LiftS sub) τ (⊆-keep (⊆-skip ⊆-refl))) ⟩
+--                    weakenType (applyTySubst (LiftS sub) τ) (⊆-keep (⊆-skip ⊆-refl)) ∎
+--   where lemma : ∀ {κ′ : Kind} → (x : κ′ ∈ (κ₁ ∷ Σ₁)) → ∈-All (LiftS (ShiftS sub)) x ≡ ∈-All (weakenTypes (LiftS sub) (⊆-keep (⊆-skip ⊆-refl))) x
+--         lemma hd = refl
+--         lemma (tl x) = {!!}
 
 
--- applyShiftS : ∀ {Σ₁ Σ₂ κ₁ κ₂} → (sub : TySubst Σ₁ Σ₂) (τ : Type Σ₁ κ₁) →
---               applyTySubst (ShiftS {κ = κ₂} sub) τ ≡ shift (applyTySubst sub τ)
--- applyShiftS sub (tvar x) = ∈-mapAll shift sub x
--- applyShiftS sub (τ₁ $ τ₂) = cong₂ _$_ (applyShiftS sub τ₁) (applyShiftS sub τ₂)
--- applyShiftS sub (τ₁ ⇒ τ₂) = cong₂ _⇒_ (applyShiftS sub τ₁) (applyShiftS sub τ₂)
--- applyShiftS sub (forAll κ τ) = cong (forAll κ) {!applyShiftS (LiftS sub) τ!}
--- applyShiftS sub (con x) = refl
--- applyShiftS sub (lit x) = refl
+applyShiftS : ∀ {Σ₁ Σ₂ κ₁ κ₂} → (sub : TySubst Σ₁ Σ₂) (τ : Type Σ₁ κ₁) →
+              applyTySubst (ShiftS {κ = κ₂} sub) τ ≡ shift (applyTySubst sub τ)
+applyShiftS sub τ = ≡-sym (weakenType-applyTySubst sub τ (⊆-skip ⊆-refl))
 
--- applyWeakenS : ∀ {Σ₁ Σ₂ κ} → (p : Σ₁ ⊆ Σ₂) (τ : Type Σ₁ κ) →
---                applyTySubst (WeakenS p) τ ≡ weakenType τ p
--- applyWeakenS p (tvar x) = lookupWeakenS p x
---   where lookupWeakenS : ∀ {Σ₁ Σ₂ κ} → (p : Σ₁ ⊆ Σ₂) (x : κ ∈ Σ₁) →
---                         lookupTySubst (WeakenS p) x ≡ tvar (∈-over-⊆ p x)
---         lookupWeakenS (_ ∷ _) hd = refl
---         lookupWeakenS (_ ∷ p) (tl x) = lookupWeakenS p x
--- applyWeakenS p (τ₁ $ τ₂) = cong₂ _$_ (applyWeakenS p τ₁) (applyWeakenS p τ₂)
--- applyWeakenS p (τ₁ ⇒ τ₂) = cong₂ _⇒_ (applyWeakenS p τ₁) (applyWeakenS p τ₂)
--- applyWeakenS p (forAll κ τ)
--- --  rewrite {!!}
---   = cong (forAll κ) {!!}
--- applyWeakenS p (con x) = refl
--- applyWeakenS p (lit x) = refl
--- -}
+weakenType-applyTyArgs :
+  ∀ {Σ₁ Σ₂} → (p : Σ₁ ⊆ Σ₂) →
+    ∀ {κ} (τ : Type Σ₁ κ) (tyArgs : Types Σ₁ (saturatedTyCxt κ)) →
+    weakenType (applyTyArgs τ tyArgs) p
+    ≡ applyTyArgs (weakenType τ p) (weakenTypes tyArgs p)
+weakenType-applyTyArgs p {∗} τ [] = refl
+weakenType-applyTyArgs p {κ₁ ⇒ κ₂} τ tyArgs rewrite lastAll-mapAll (saturatedTyCxt κ₂) (λ τ → weakenType τ p) tyArgs
+  with lastAll (satTyCxt (saturate κ₂)) tyArgs
+weakenType-applyTyArgs p {κ₁ ⇒ κ₂} τ tyArgs
+  | tyArgs′ , tyArg = weakenType-applyTyArgs p (τ $ tyArg) tyArgs′
 
--- {-
--- applyTySubst-applyTySubst :
---   ∀ {Σ₁ Σ₂ Σ₃} {κ} → (τ : Type Σ₁ κ) →
---     (sub₁ : TySubst Σ₁ Σ₂) (sub₂ : TySubst Σ₂ Σ₃) →
---     applyTySubst sub₂ (applyTySubst sub₁ τ) ≡ applyTySubst (ComposeS sub₁ sub₂) τ
--- applyTySubst-applyTySubst (tvar x) sub₁ sub₂ = applyTySubst-lookupTySubst x sub₁ sub₂
--- applyTySubst-applyTySubst (τ₁ $ τ₂) sub₁ sub₂ = cong₂ _$_ (applyTySubst-applyTySubst τ₁ sub₁ sub₂) (applyTySubst-applyTySubst τ₂ sub₁ sub₂)
--- applyTySubst-applyTySubst (τ₁ ⇒ τ₂) sub₁ sub₂ = cong₂ _⇒_ (applyTySubst-applyTySubst τ₁ sub₁ sub₂) (applyTySubst-applyTySubst τ₂ sub₁ sub₂)
--- applyTySubst-applyTySubst (forAll κ τ) sub₁ sub₂ = cong (forAll κ) {!!}
--- applyTySubst-applyTySubst (con x) sub₁ sub₂ = refl
--- applyTySubst-applyTySubst (lit x) sub₁ sub₂ = refl
--- -}
+weakenType-applyTyArgs′ :
+  ∀ {Σ₁ Σ₂} {κ} → (adt : ADT κ) → (p : Σ₁ ⊆ Σ₂) →
+    (tyArgs : Types Σ₁ (ADT.tyCxt adt)) →
+    weakenType (applyTyArgs (con (adtTyCon adt)) tyArgs) p
+    ≡ applyTyArgs (con (adtTyCon adt)) (weakenTypes tyArgs p)
+weakenType-applyTyArgs′ adt p tyArgs = weakenType-applyTyArgs p (con (adtTyCon adt)) tyArgs
 
+eixample : ∀ {Σ₁ Σ₂} {κ} → (Γ : List (Type Σ₁ ∗)) →
+             (p : Σ₁ ⊆ Σ₂) →
+             weakenCxt (weakenCxt Γ (⊆-skip ⊆-refl)) (hd ∷ ⊆-skip p)
+             ≡
+             weakenCxt (weakenCxt Γ p) (⊆-skip {x = κ} ⊆-refl)
+eixample {κ = κ} Γ p
+  rewrite weakenCxt-weakenCxt Γ (⊆-skip {x = κ} ⊆-refl) (hd ∷ ⊆-skip p) |
+          weakenCxt-weakenCxt Γ p (⊆-skip {x = κ} ⊆-refl) |
+          ⊆-trans-⊆-skip-⊆-refl {κ = κ} p
+  = refl
 
--- -- weakenType-applyTyArgs :
--- --   ∀ {Σ₁ Σ₂} {κ} → (adt : ADT κ) → (p : Σ₁ ⊆ Σ₂) →
--- --     (tyArgs : Types Σ₁ (ADT.tyCxt adt)) →
--- --     weakenType (applyTyArgs (con (adtTyCon adt)) tyArgs) p
--- --     ≡ applyTyArgs (con (adtTyCon adt)) (weakenTypes tyArgs p)
--- -- weakenType-applyTyArgs {κ = ∗} adt p [] = refl
--- -- weakenType-applyTyArgs {Σ₁} {Σ₂} {κ ⇒ κ₁} adt p tyArgs = {!!}
-
-
-
-
-
--- eixample : ∀ {Σ₁ Σ₂} {κ} → (Γ : List (Type Σ₁ ∗)) →
---              (p : Σ₁ ⊆ Σ₂) →
---              weakenCxt (weakenCxt Γ (⊆-skip ⊆-refl)) (hd ∷ ⊆-skip p)
---              ≡
---              weakenCxt (weakenCxt Γ p) (⊆-skip {x = κ} ⊆-refl)
--- eixample {κ = κ} Γ p
---   rewrite weakenCxt-weakenCxt Γ (⊆-skip {x = κ} ⊆-refl) (hd ∷ ⊆-skip p) |
---           weakenCxt-weakenCxt Γ p (⊆-skip {x = κ} ⊆-refl) |
---           ⊆-trans-⊆-skip-⊆-refl {κ = κ} p
---   = refl
-
--- weakenExpr : ∀ {Σ₁ Σ₂ Γ} {τ₁ : Type Σ₁ ∗} → Expr Σ₁ Γ τ₁ → (p : Σ₁ ⊆ Σ₂) →
---                Expr Σ₂ (weakenCxt Γ p) (weakenType τ₁ p)
--- weakenBranch : ∀ {Σ₁ Σ₂ Γ κ} {adt : ADT κ} {tyArgs : Types Σ₁ (ADT.tyCxt adt)}
---                  {τ : Type Σ₁ ∗} →
---                  Branch Σ₁ Γ adt tyArgs τ → (p : Σ₁ ⊆ Σ₂) →
---                  Branch Σ₂ (weakenCxt Γ p) adt (weakenTypes tyArgs p)
---                            (weakenType τ p)
--- branchConstructorIndex-weakenBranch :
---   ∀ {Σ₁ Σ₂} {κ} →
---     (p : Σ₁ ⊆ Σ₂) →
---     (adt : ADT κ) →
---     (tyArgs : Types Σ₁ (ADT.tyCxt adt)) →
---     (Γ : List (Type Σ₁ ∗)) →
---     (τ : Type Σ₁ ∗) →
---     (b : Branch Σ₁ Γ adt tyArgs τ) →
---     branchConstructorIndex (weakenBranch b p) ≡ branchConstructorIndex b
--- Exhaustive-weakenBranch :
---   ∀ {Σ₁ Σ₂} {κ} →
---     (p : Σ₁ ⊆ Σ₂) →
---     (adt : ADT κ) →
---     (tyArgs : Types Σ₁ (ADT.tyCxt adt)) →
---     (Γ : List (Type Σ₁ ∗)) →
---     (τ : Type Σ₁ ∗) →
---     (bs : List (Branch Σ₁ Γ adt tyArgs τ)) →
---     Exhaustive bs →
---     Exhaustive (map (flip weakenBranch p) bs)
+{-# TERMINATING #-}
+weakenExpr : ∀ {Σ₁ Σ₂ Γ} {τ₁ : Type Σ₁ ∗} → Expr Σ₁ Γ τ₁ → (p : Σ₁ ⊆ Σ₂) →
+               Expr Σ₂ (weakenCxt Γ p) (weakenType τ₁ p)
+weakenBranch : ∀ {Σ₁ Σ₂ Γ κ} {adt : ADT κ} {tyArgs : Types Σ₁ (ADT.tyCxt adt)}
+                 {τ : Type Σ₁ ∗} →
+                 Branch Σ₁ Γ adt tyArgs τ → (p : Σ₁ ⊆ Σ₂) →
+                 Branch Σ₂ (weakenCxt Γ p) adt (weakenTypes tyArgs p)
+                           (weakenType τ p)
+branchConstructorIndex-weakenBranch :
+  ∀ {Σ₁ Σ₂} {κ} →
+    (p : Σ₁ ⊆ Σ₂) →
+    (adt : ADT κ) →
+    (tyArgs : Types Σ₁ (ADT.tyCxt adt)) →
+    (Γ : List (Type Σ₁ ∗)) →
+    (τ : Type Σ₁ ∗) →
+    (b : Branch Σ₁ Γ adt tyArgs τ) →
+    branchConstructorIndex (weakenBranch b p) ≡ branchConstructorIndex b
+Exhaustive-weakenBranch :
+  ∀ {Σ₁ Σ₂} {κ} →
+    (p : Σ₁ ⊆ Σ₂) →
+    (adt : ADT κ) →
+    (tyArgs : Types Σ₁ (ADT.tyCxt adt)) →
+    (Γ : List (Type Σ₁ ∗)) →
+    (τ : Type Σ₁ ∗) →
+    (bs : List (Branch Σ₁ Γ adt tyArgs τ)) →
+    Exhaustive bs →
+    Exhaustive (map (flip weakenBranch p) bs)
 
 
--- weakenExpr (var i) p = var (weakenVar i p)
--- weakenExpr (e₁ $ e₂) p = weakenExpr e₁ p $ weakenExpr e₂ p
--- weakenExpr (_[_] {τ₁ = τ₁} e τ) p = {!!}
--- --  rewrite weakenType-substTop τ τ₁ p = weakenExpr e p [ weakenType τ p ]
--- weakenExpr (lam τ e) p = lam (weakenType τ p) (weakenExpr e p)
--- weakenExpr {Σ₁} {Σ₂} {Γ} (Λ κ {τ} e) p
---   = let we : Expr (κ ∷ Σ₂) (weakenCxt (weakenCxt Γ (⊆-skip ⊆-refl)) (hd ∷ ⊆-skip p))
---                   (weakenType τ (⊆-keep p))
---         we = {!!} --weakenExpr e (hd , ⊆-skip p)
---         cxts : weakenCxt (weakenCxt Γ (⊆-skip ⊆-refl)) (hd ∷ ⊆-skip p)
---                ≡
---                weakenCxt (weakenCxt Γ p) (⊆-skip {x = κ} ⊆-refl)
---         cxts = {!!} -- transport  = ?
---     in Λ κ (transport (λ cxt → Expr (κ ∷ Σ₂) cxt (weakenType τ (⊆-keep p)))
---                       (eixample Γ p) we)
+weakenExpr (var i) p = var (weakenVar i p)
+weakenExpr (e₁ $ e₂) p = weakenExpr e₁ p $ weakenExpr e₂ p
+weakenExpr (_[_] {τ₁ = τ₁} e τ) p
+  rewrite weakenType-substTop τ τ₁ p
+  = weakenExpr e p [ weakenType τ p ]
+weakenExpr (lam τ e) p = lam (weakenType τ p) (weakenExpr e p)
+weakenExpr {Σ₁} {Σ₂} {Γ} (Λ κ {τ} e) p
+  = let we : Expr (κ ∷ Σ₂) (weakenCxt (weakenCxt Γ (⊆-skip ⊆-refl)) (hd ∷ ⊆-skip p))
+                  (weakenType τ (⊆-keep p))
+        we = weakenExpr e (⊆-keep p)
+        cxts : weakenCxt (weakenCxt Γ (⊆-skip ⊆-refl)) (hd ∷ ⊆-skip p)
+               ≡
+               weakenCxt (weakenCxt Γ p) (⊆-skip {x = κ} ⊆-refl)
+        cxts = eixample Γ p
+    in Λ κ (transport (λ cxt → Expr (κ ∷ Σ₂) cxt (weakenType τ (⊆-keep p)))
+                      (eixample Γ p) we)
 
--- weakenExpr (con dc) p rewrite weakenType-weakenType (dcType dc) [] p = con dc
--- weakenExpr (lit (flit l)) _ = lit (flit l)
--- weakenExpr (fvar (fvar m i)) _ = fvar (fvar m i)
--- weakenExpr (fdict fdict) _ = fdict fdict
--- weakenExpr {Σ₂ = Σ₂} {Γ} (match {τ₁} adt tyArgs e bs ex) p
---   = match adt (weakenTypes tyArgs p)
---               (transport (Expr Σ₂ (weakenCxt Γ p))
---                          {! !}
---                          {!(weakenExpr e p)!})
---               (map (flip weakenBranch p) bs)
---               (Exhaustive-weakenBranch p adt tyArgs Γ τ₁ bs ex)
+weakenExpr (con dc) p rewrite weakenType-weakenType (dcType dc) [] p = con dc
+weakenExpr (lit (flit l)) _ = lit (flit l)
+weakenExpr (fvar (fvar m i)) _ = fvar (fvar m i)
+weakenExpr (fdict fdict) _ = fdict fdict
+weakenExpr {Σ₂ = Σ₂} {Γ} (match {τ₁} adt tyArgs e bs ex) p
+  = match adt (weakenTypes tyArgs p)
+              (transport (Expr Σ₂ (weakenCxt Γ p))
+                         (weakenType-applyTyArgs′ adt p tyArgs)
+                         (weakenExpr e p))
+              (map (flip weakenBranch p) bs)
+              (Exhaustive-weakenBranch p adt tyArgs Γ τ₁ bs ex)
 
 
 
--- weakenBranch {_} {Σ₂} {Γ} {_} {Adt ftc n cs} {_} {τ} (alt pat e) p
---   = alt (weakenPat pat p)
---         (weakenInCxt {!(weakenExpr e p)!}
---                      (⊆-trans (⊆-weakenCxt-+++ {Γ₁ = patBinders pat} p)
---                               (⊆-+++-suffix (⊆-weakenCxt-patBinders pat p))))
+weakenBranch {_} {Σ₂} {Γ} {_} {Adt ftc n cs} {_} {τ} (alt pat e) p
+  = alt (weakenPat pat p)
+        (weakenInCxt (weakenExpr e p)
+                     (⊆-trans (⊆-weakenCxt-+++ {Γ₁ = patBinders pat} p)
+                              (⊆-+++-suffix (⊆-weakenCxt-patBinders pat p))))
 
--- branchConstructorIndex-weakenBranch _ _ _ _ _ (alt ̺ _) = refl
--- branchConstructorIndex-weakenBranch _ _ _ _ _ (alt (lit _) _) = refl
--- branchConstructorIndex-weakenBranch _ _ _ _ _ (alt (con _) _) = refl
+branchConstructorIndex-weakenBranch _ _ _ _ _ (alt ̺ _) = refl
+branchConstructorIndex-weakenBranch _ _ _ _ _ (alt (lit _) _) = refl
+branchConstructorIndex-weakenBranch _ _ _ _ _ (alt (con _) _) = refl
 
 
--- Exhaustive-weakenBranch p adt tyArgs Γ τ bs ex
---   rewrite compose-map bs (flip weakenBranch p) branchConstructorIndex |
---           map-≡ {xs = bs} _ _
---                 (λ {b} → branchConstructorIndex-weakenBranch p adt tyArgs Γ τ b)
---           = ex
+Exhaustive-weakenBranch p adt tyArgs Γ τ bs ex
+  rewrite compose-map bs (flip weakenBranch p) branchConstructorIndex |
+          map-≡ {xs = bs} _ _
+                (λ {b} → branchConstructorIndex-weakenBranch p adt tyArgs Γ τ b)
+          = ex
