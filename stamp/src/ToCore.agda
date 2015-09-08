@@ -111,20 +111,14 @@ instance
       tr (lit l)    = pure (LitAlt l)
       tr (con dc) = DataAlt <$> toCore (dataConForeignDataCon dc)
 
-  ToCoreExpr : ∀ {Σ Γ τ} → ToCore (Expr Σ Γ τ) CoreExpr
-  {-# TERMINATING #-}
-
-  ToCoreBranch : ∀ {Σ Γ κ adt tyArgs τ} → ToCore (Branch Σ Γ {κ} adt tyArgs τ) CoreAlt
-  ToCoreBranch = record { toCore = tr }
-    where
-      tr : ∀ {Σ Γ κ adt tyArgs τ} → Branch Σ Γ {κ} adt tyArgs τ → ToCoreM CoreAlt
-      tr (alt p e) = mapM toCore (patBinders p) >>= λ binderTypes →
-                     withFreshVars binderTypes λ binders →
-                     triple <$> toCore p <*> pure binders <*> toCore e
-
-  ToCoreExpr = record { toCore = tr }
-    where
+  private
       tr : ∀ {Σ Γ τ} → Expr Σ Γ τ → ToCoreM CoreExpr
+      trb : ∀ {Σ Γ κ adt tyArgs τ} → Branch Σ Γ {κ} adt tyArgs τ → ToCoreM CoreAlt
+
+      trb (alt p e) = mapM toCore (patBinders p) >>= λ binderTypes →
+                     withFreshVars binderTypes λ binders →
+                     triple <$> toCore p <*> pure binders <*> tr e
+
       tr (var k)   = Var' <$> lookupVar (fromNat (∈2i k))
       tr (e₁ $ e₂) = App <$> tr e₁ <*> tr e₂
       tr (e [ τ ]) = App <$> tr e <*> (Type' <$> toCore τ)
@@ -138,11 +132,19 @@ instance
       tr (lit (flit l))    = pure (Lit l)
       tr (fvar (fvar q s)) = Var' <$> lookupForeignId (qname varNameSpace q s)
       tr {τ = τ} (fdict fdict) = toCore τ >>= λ ct → Var' <$> lookupInstance ct
-      tr {τ = τ} (match _ _ sc bs _)
-        = Case <$> toCore sc <*>
+      tr {τ = τ} (match adt _ sc bs _)
+        = Case <$> tr sc <*>
                    (mkWildValBinder <$> toCore (exprType sc)) <*>
                    toCore τ <*>
-                   mapM toCore bs
+                   mapM (λ i → trb (bs i)) (allConstructorIndices {{adt}})
         where
           exprType : ∀ {Σ Γ τ} → Expr Σ Γ τ → Type Σ ∗
           exprType {τ = τ} _ = τ
+
+
+  ToCoreExpr : ∀ {Σ Γ τ} → ToCore (Expr Σ Γ τ) CoreExpr
+
+  ToCoreBranch : ∀ {Σ Γ κ adt tyArgs τ} → ToCore (Branch Σ Γ {κ} adt tyArgs τ) CoreAlt
+  ToCoreBranch = record { toCore = trb }
+
+  ToCoreExpr = record { toCore = tr }

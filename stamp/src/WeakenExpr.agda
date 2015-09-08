@@ -426,7 +426,6 @@ eixample {κ = κ} Γ p
           ⊆-trans-⊆-skip-⊆-refl {κ = κ} p
   = refl
 
-{-# TERMINATING #-}
 weakenExpr : ∀ {Σ₁ Σ₂ Γ} {τ₁ : Type Σ₁ ∗} → Expr Σ₁ Γ τ₁ → (p : Σ₁ ⊆ Σ₂) →
                Expr Σ₂ (weakenCxt Γ p) (weakenType τ₁ p)
 weakenBranch : ∀ {Σ₁ Σ₂ Γ κ} {adt : ADT κ} {tyArgs : Types Σ₁ (ADT.tyCxt adt)}
@@ -450,9 +449,9 @@ Exhaustive-weakenBranch :
     (tyArgs : Types Σ₁ (ADT.tyCxt adt)) →
     (Γ : List (Type Σ₁ ∗)) →
     (τ : Type Σ₁ ∗) →
-    (bs : List (Branch Σ₁ Γ adt tyArgs τ)) →
+    (bs : Branches Σ₁ Γ adt tyArgs τ) →
     Exhaustive bs →
-    Exhaustive (map (flip weakenBranch p) bs)
+    Exhaustive ((flip weakenBranch p) ∘ bs)
 
 
 weakenExpr (var i) p = var (weakenVar i p)
@@ -481,12 +480,12 @@ weakenExpr {Σ₂ = Σ₂} {Γ} (match {τ₁} adt tyArgs e bs ex) p
               (transport (Expr Σ₂ (weakenCxt Γ p))
                          (weakenType-applyTyArgs′ adt p tyArgs)
                          (weakenExpr e p))
-              (map (flip weakenBranch p) bs)
+              (λ i → weakenBranch (bs i) p)
               (Exhaustive-weakenBranch p adt tyArgs Γ τ₁ bs ex)
 
 
 
-weakenBranch {_} {Σ₂} {Γ} {_} {Adt ftc n cs} {_} {τ} (alt pat e) p
+weakenBranch {_} {Σ₂} {Γ} {_} {Adt ftc cs} {_} {τ} (alt pat e) p
   = alt (weakenPat pat p)
         (weakenInCxt (weakenExpr e p)
                      (⊆-trans (⊆-weakenCxt-+++ {Γ₁ = patBinders pat} p)
@@ -496,9 +495,6 @@ branchConstructorIndex-weakenBranch _ _ _ _ _ (alt ̺ _) = refl
 branchConstructorIndex-weakenBranch _ _ _ _ _ (alt (lit _) _) = refl
 branchConstructorIndex-weakenBranch _ _ _ _ _ (alt (con _) _) = refl
 
-
-Exhaustive-weakenBranch p adt tyArgs Γ τ bs ex
-  rewrite compose-map bs (flip weakenBranch p) branchConstructorIndex |
-          map-≡ {xs = bs} _ _
-                (λ {b} → branchConstructorIndex-weakenBranch p adt tyArgs Γ τ b)
-          = ex
+Exhaustive-weakenBranch p adt tyArgs Γ τ bs ex i
+  rewrite branchConstructorIndex-weakenBranch p adt tyArgs Γ τ (bs i)
+  = ex i

@@ -163,15 +163,8 @@ makeNestedBranch dc dc′ = alt (con dc′) (makeNestedBranchRHS dc dc′)
 makeNestedBranchExhaustive :
   ∀ {κ} {adt : ADT κ} {{eqs : RequiredEqAtCompileTime adt}} →
     (dc : DataCon (adtTyCon adt)) →
-    Exhaustive (map (makeNestedBranch dc) (adtDataCons adt))
-makeNestedBranchExhaustive {_} {adt} {{eqs}} dc rewrite
-  compose-map (allFin (ADT.nbConstructors adt))
-              (con adt) (makeNestedBranch dc) |
-  compose-map (allFin (ADT.nbConstructors adt))
-              (makeNestedBranch dc ∘ con adt)
-              branchConstructorIndex
-  = refl
-
+    Exhaustive (λ i → makeNestedBranch dc (con adt i))
+makeNestedBranchExhaustive {_} {adt} {{eqs}} dc i = refl
 
 makeBranch : ∀ {κ} {adt : ADT κ} {{eqs : RequiredEqAtCompileTime adt}} →
                (dc : DataCon (adtTyCon adt)) →
@@ -183,19 +176,13 @@ makeBranch {_} {adt} dc
   = alt (con dc)
         (match adt IdS
                (var (∈-+++-suffix {ys = patBinders (con dc)} hd))
-               (map (makeNestedBranch dc) (adtDataCons adt))
+               (λ i → makeNestedBranch dc (con adt i))
                (makeNestedBranchExhaustive dc))
 
 makeBranchExhaustive : ∀ {κ} {adt : ADT κ}
                          {{eqs : RequiredEqAtCompileTime adt}} →
-                         Exhaustive (map makeBranch (adtDataCons adt))
-makeBranchExhaustive {_} {adt} {{eqs}} rewrite
-  compose-map (allFin (ADT.nbConstructors adt))
-              (con adt) makeBranch |
-  compose-map (allFin (ADT.nbConstructors adt))
-              (makeBranch ∘ con adt) branchConstructorIndex
-  = refl
-
+                         Exhaustive (λ i → makeBranch (con adt i))
+makeBranchExhaustive {_} {adt} {{eqs}} i = refl
 
 mkΛ : ∀ (Σ : TyCxt) {τ : Type Σ ∗} → Expr Σ [] τ → Expr [] [] (mkForAll Σ τ)
 mkΛ []      e = e
@@ -226,7 +213,8 @@ deriveEq adt eqs
     (lam (tyConType (adtTyCon adt))
     (lam (tyConType (adtTyCon adt))
     (match adt IdS (var (tl hd))
-           (map makeBranch (adtDataCons adt)) makeBranchExhaustive))))
+      (λ i → makeBranch (con adt i))
+      (λ i → refl)))))
 
 -- data Foo = Barry | Bar Bool
 

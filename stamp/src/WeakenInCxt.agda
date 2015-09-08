@@ -43,19 +43,12 @@ weakenInCxt-Branch-Exhaustive :
   ∀ {κ} {adt : ADT κ} {Σ} {Γ₁ Γ₂ : Cxt Σ} {τ : Type Σ ∗}
     {tyArgs : Types Σ (ADT.tyCxt adt)} →
     (p : Γ₁ ⊆ Γ₂) →
-    (bs : List (Branch Σ Γ₁ adt tyArgs τ)) →
+    (bs : Branches Σ Γ₁ adt tyArgs τ) →
     Exhaustive bs →
-    Exhaustive (map (weakenInCxt-Branch p) bs)
-weakenInCxt-Branch-Exhaustive {adt = Adt ftc n cs} {τ = τ} p bs ex
-  rewrite compose-map bs (weakenInCxt-Branch p) branchConstructorIndex |
-          map-≡ {xs = bs}
-                (λ x → branchConstructorIndex (weakenInCxt-Branch p x))
-                branchConstructorIndex
-                (λ {b} → weakenInCxt-Branch-branchConstructorIndex p b)
-  = ex
-
-
-
+    Exhaustive (weakenInCxt-Branch p ∘ bs)
+weakenInCxt-Branch-Exhaustive {adt = Adt ftc cs} {τ = τ} p bs ex i
+  rewrite weakenInCxt-Branch-branchConstructorIndex p (bs i)
+  = ex i
 
 weakenInCxt (var i) p = var (∈-over-⊆ p i)
 weakenInCxt (e₁ $ e₂) p = weakenInCxt e₁ p $ weakenInCxt e₂ p
@@ -67,5 +60,5 @@ weakenInCxt (lit l) p = lit l
 weakenInCxt (fvar fv) p = fvar fv
 weakenInCxt (fdict fd) p = fdict fd
 weakenInCxt {Σ} {Γ₁} {Γ₂} {τ} (match adt tyArgs e bs ex) p
-  = match adt tyArgs (weakenInCxt e p) (map (weakenInCxt-Branch p) bs)
+  = match adt tyArgs (weakenInCxt e p) (weakenInCxt-Branch p ∘ bs)
           (weakenInCxt-Branch-Exhaustive p bs ex)
