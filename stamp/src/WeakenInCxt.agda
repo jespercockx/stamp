@@ -9,17 +9,13 @@ open import TypedCore
 ∈-weakenCxt hd     p = hd
 ∈-weakenCxt (tl q) p = tl (∈-weakenCxt q p)
 
-
 ⊆-weakenCxt : ∀ {Σ₁ Σ₂} {Γ₁ Γ₂ : Cxt Σ₁} → Γ₁ ⊆ Γ₂ → (p : Σ₁ ⊆ Σ₂) →
                 weakenCxt Γ₁ p ⊆ weakenCxt Γ₂ p
 ⊆-weakenCxt [] p = []
 ⊆-weakenCxt (q₁ ∷ q₂) p = (∈-weakenCxt q₁ p) ∷ (⊆-weakenCxt q₂ p)
 
-{-# TERMINATING #-}
 weakenInCxt : ∀ {Σ} {Γ₁ Γ₂ : Cxt Σ} {τ : Type Σ ∗} → Expr Σ Γ₁ τ →
                 Γ₁ ⊆ Γ₂ → Expr Σ Γ₂ τ
-
-
 
 weakenInCxt-Branch : ∀ {Σ} {Γ₁ Γ₂ : Cxt Σ} {τ : Type Σ ∗} {κ} {adt : ADT κ}
                        {tyArgs : Types Σ (ADT.tyCxt adt)} →
@@ -27,7 +23,6 @@ weakenInCxt-Branch : ∀ {Σ} {Γ₁ Γ₂ : Cxt Σ} {τ : Type Σ ∗} {κ} {ad
                        Branch Σ Γ₂ adt tyArgs τ
 weakenInCxt-Branch p (alt pat e)
   = alt pat (weakenInCxt e (⊆-+++-prefix {zs = patBinders pat} p))
-
 
 weakenInCxt-Branch-branchConstructorIndex :
   ∀ {Σ} {Γ₁ Γ₂ : Cxt Σ} {τ : Type Σ ∗} {κ} {adt : ADT κ}
@@ -37,7 +32,6 @@ weakenInCxt-Branch-branchConstructorIndex :
 weakenInCxt-Branch-branchConstructorIndex _ (alt ̺ _) = refl
 weakenInCxt-Branch-branchConstructorIndex _ (alt (lit _) _) = refl
 weakenInCxt-Branch-branchConstructorIndex _ (alt (con _) _) = refl
-
 
 weakenInCxt-Branch-Exhaustive :
   ∀ {κ} {adt : ADT κ} {Σ} {Γ₁ Γ₂ : Cxt Σ} {τ : Type Σ ∗}
@@ -60,5 +54,5 @@ weakenInCxt (lit l) p = lit l
 weakenInCxt (fvar fv) p = fvar fv
 weakenInCxt (fdict fd) p = fdict fd
 weakenInCxt {Σ} {Γ₁} {Γ₂} {τ} (match adt tyArgs e bs ex) p
-  = match adt tyArgs (weakenInCxt e p) (weakenInCxt-Branch p ∘ bs)
+  = match adt tyArgs (weakenInCxt e p) (λ i → weakenInCxt-Branch p (bs i))
           (weakenInCxt-Branch-Exhaustive p bs ex)
