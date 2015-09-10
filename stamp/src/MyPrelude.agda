@@ -72,6 +72,11 @@ map-≡ : ∀ {A B : Set} {xs : List A} → (f g : A → B) →
 map-≡ {xs = []} _ _ h = refl
 map-≡ {xs = x ∷ xs} f g h rewrite h {x} | map-≡ {xs = xs} f g h = refl
 
+map-id : ∀ {A : Set} {xs : List A} (f : A → A)
+       → (∀ {x} → f x ≡ x) → map f xs ≡ xs
+map-id {xs = []} f h = refl
+map-id {xs = x ∷ xs} f h = cong₂ _∷_ h (map-id f h)
+
 
 ++-[] : ∀ {A : Set} {xs : List A} → xs ++ [] ≡ xs
 ++-[] {xs = []} = refl
@@ -118,6 +123,10 @@ lift∈ (x ∷ zs) f (tl p) = tl (lift∈ zs f p)
 
 tailAll : ∀ {A : Set} {P : A → Set} {x : A} {xs : List A} → All P (x ∷ xs) → All P xs
 tailAll (_ ∷ xs) = xs
+
+_++All_ : ∀ {A : Set} {P : A → Set} {xs ys : List A} → All P xs → All P ys → All P (xs ++ ys)
+[] ++All qs = qs
+(p ∷ ps) ++All qs = p ∷ (ps ++All qs)
 
 All-ext : ∀ {A : Set} {P : A → Set} {xs : List A} → {ps ps′ : All P xs} →
           (∀ {x : A} (p : x ∈ xs) → ∈-All ps p ≡ ∈-All ps′ p) →
@@ -311,6 +320,10 @@ xs ⊈ ys = ¬ (xs ⊆ ys)
 ⊆-skip : ∀ {A : Set} {x : A} {xs ys : List A} → xs ⊆ ys → xs ⊆ (x ∷ ys)
 ⊆-skip p = mapAll tl p
 
+⊆-skip-n : ∀ {A : Set} {xs zs : List A} (ys : List A) → xs ⊆ zs → xs ⊆ (ys ++ zs)
+⊆-skip-n [] p = p
+⊆-skip-n (y ∷ ys) p = ⊆-skip (⊆-skip-n ys p)
+
 ⊆-refl : ∀ {A : Set} {xs : List A} → xs ⊆ xs
 ⊆-refl {xs = []} = []
 ⊆-refl {xs = x ∷ xs} = hd ∷ ⊆-skip ⊆-refl
@@ -337,6 +350,10 @@ xs ⊈ ys = ¬ (xs ⊆ ys)
 ⊆-trans : ∀ {A : Set} {xs ys zs : List A} → xs ⊆ ys → ys ⊆ zs → xs ⊆ zs
 ⊆-trans {xs = []} p q = []
 ⊆-trans {xs = x ∷ xs} (px ∷ pxs) q = ∈-over-⊆ q px ∷ ⊆-trans pxs q
+
+⊆-prefix : ∀ {A : Set} (xs ys : List A) → xs ⊆ xs ++ ys
+⊆-prefix [] ys = []
+⊆-prefix (x ∷ xs) ys = hd ∷ mapAll tl (⊆-prefix xs ys)
 
 ⊆-++-swap : ∀ {A : Set} (xs ys : List A) → xs ++ ys ⊆ ys ++ xs
 ⊆-++-swap xs ys = ⊆-over-∈ (∈-++-swap {xs = xs} {ys = ys})

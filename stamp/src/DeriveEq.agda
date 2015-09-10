@@ -2,6 +2,7 @@ module DeriveEq where
 
 open import MyPrelude hiding (_$_; [_]; show)
 open import TypedCore
+open import TypedUtils
 open import HelloWorld
 
 FooADT : ADT ∗
@@ -184,37 +185,24 @@ makeBranchExhaustive : ∀ {κ} {adt : ADT κ}
                          Exhaustive (λ i → makeBranch (con adt i))
 makeBranchExhaustive {_} {adt} {{eqs}} i = refl
 
-mkΛ : ∀ (Σ : TyCxt) {τ : Type Σ ∗} → Expr Σ [] τ → Expr [] [] (mkForAll Σ τ)
-mkΛ []      e = e
-mkΛ (κ ∷ Σ) e = mkΛ Σ (Λ κ e)
-
-
-mkFun : ∀ {Σ : TyCxt} → Cxt Σ → Type Σ ∗ → Type Σ ∗
-mkFun []       τ = τ
-mkFun (τ₁ ∷ Γ) τ = mkFun Γ (τ₁ ⇒ τ)
-
-mkLam : ∀ {Σ : TyCxt} {Γ : Cxt Σ} {τ : Type Σ ∗} → Expr Σ Γ τ →
-          Expr Σ [] (mkFun Γ τ)
-mkLam {Σ} {[]}     e = e
-mkLam {Σ} {τ₁ ∷ Γ} e = mkLam {Γ = Γ} (lam τ₁ e)
 
 deriveEqType : ∀ {κ} → ADT κ → Type [] ∗
 deriveEqType adt = mkForAll (ADT.tyCxt adt)
-                            (mkFun (RequiredEqAtRunTime adt)
+                            (RequiredEqAtRunTime adt ⇒ⁿ
                             (tyConType (adtTyCon adt) ⇒
-                             tyConType (adtTyCon adt) ⇒
-                             con `Bool`))
+                              tyConType (adtTyCon adt) ⇒
+                              con `Bool`))
 
 deriveEq : ∀ {κ} → (adt : ADT κ) (eqs : RequiredEqAtCompileTime adt) →
            Expr [] [] (deriveEqType adt)
 deriveEq adt eqs
   = mkΛ (ADT.tyCxt adt)
-    (mkLam {Γ = RequiredEqAtRunTime adt}
-    (lam (tyConType (adtTyCon adt))
-    (lam (tyConType (adtTyCon adt))
-    (match adt IdS (var (tl hd))
-      (λ i → makeBranch (con adt i))
-      (λ i → refl)))))
+    (lamⁿ {Γ = RequiredEqAtRunTime adt} 
+    (lam (tyConType (adtTyCon adt)) 
+    (lam (tyConType (adtTyCon adt)) 
+    (match adt IdS (var (tl hd)) 
+      (λ i → makeBranch (con adt i)) 
+      (λ i → refl))))) 
 
 -- data Foo = Barry | Bar Bool
 

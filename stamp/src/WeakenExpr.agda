@@ -403,10 +403,7 @@ weakenType-applyTyArgs :
     weakenType (applyTyArgs τ tyArgs) p
     ≡ applyTyArgs (weakenType τ p) (weakenTypes tyArgs p)
 weakenType-applyTyArgs p {∗} τ [] = refl
-weakenType-applyTyArgs p {κ₁ ⇒ κ₂} τ tyArgs rewrite lastAll-mapAll (saturatedTyCxt κ₂) (λ τ → weakenType τ p) tyArgs
-  with lastAll (satTyCxt (saturate κ₂)) tyArgs
-weakenType-applyTyArgs p {κ₁ ⇒ κ₂} τ tyArgs
-  | tyArgs′ , tyArg = weakenType-applyTyArgs p (τ $ tyArg) tyArgs′
+weakenType-applyTyArgs p {κ₁ ⇒ κ₂} τ (a ∷ tyArgs) = weakenType-applyTyArgs p (τ $ a) tyArgs
 
 weakenType-applyTyArgs′ :
   ∀ {Σ₁ Σ₂} {κ} → (adt : ADT κ) → (p : Σ₁ ⊆ Σ₂) →

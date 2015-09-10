@@ -64,25 +64,10 @@ Cxt : TyCxt → Set
 Cxt Σ = Context (Type Σ ∗)
 
 --- Utilities for modelling Type Constructors
-infixr 5 _∷_
-data Saturates : Kind → Set where
-  []  : Saturates ∗
-  _∷_ : ∀ {κ} → (κ₁ : Kind) → Saturates κ → Saturates (κ₁ ⇒ κ)
-
-saturate : ∀ κ → Saturates κ
-saturate ∗ = []
-saturate (κ₁ ⇒ κ₂) = κ₁ ∷ saturate κ₂
-
-satTyCxt : ∀ {κ} → Saturates κ → TyCxt
-satTyCxt [] = []
-satTyCxt (κ ∷ sat) = satTyCxt sat ++ (κ ∷ [])
 
 saturatedTyCxt : ∀ κ → TyCxt
-saturatedTyCxt = satTyCxt ∘ saturate
-
-
-satTyCxt-⊆ : ∀ {κ κₛ} → (sat : Saturates κₛ) → satTyCxt sat ⊆ satTyCxt (κ ∷ sat)
-satTyCxt-⊆ sat = ⊆-over-∈ ∈-suffix
+saturatedTyCxt ∗ = []
+saturatedTyCxt (κ₁ ⇒ κ₂) = κ₁ ∷ saturatedTyCxt κ₂
 
 data ForeignTyCon : Set where
   fcon : Module → Ident → ForeignTyCon
@@ -162,7 +147,6 @@ dataConIndex (con _ i) = i
 
 adtDataCons : ∀ {κ} → (adt : ADT κ) → List (DataCon (con adt))
 adtDataCons adt = map (con adt) (allFin (ADT.nbConstructors adt))
-
 
 mkForAll : ∀ (Σ : TyCxt) → Type Σ ∗ → Type [] ∗
 mkForAll [] τ = τ
@@ -336,37 +320,22 @@ data ForeignVar (Σ : TyCxt) (τ : Type Σ ∗) : Set where
 data ForeignDict (Σ : TyCxt) (τ : Type Σ ∗) : Set where
   fdict : ForeignDict Σ τ
 
-lastAll : ∀ {A : Set} {P : A → Set} (xs : List A) {x : A} →
-            All P (xs ++ x ∷ []) → All P xs × P x
-lastAll [] (p ∷ []) = [] , p
-lastAll (x ∷ xs) (p ∷ all) with lastAll xs all
-... | all′ , p′ = (p ∷ all′) , p′
-
-lastAll-mapAll : ∀ {A : Set} {P Q : A → Set} (xs : List A) {x : A} →
-                 (f : ∀ {x} → P x → Q x) →
-                 (ps : All P (xs ++ x ∷ [])) → lastAll xs (mapAll f ps) ≡ (mapAll f *** f) (lastAll xs ps)
-lastAll-mapAll [] f (p ∷ []) = refl
-lastAll-mapAll (x ∷ xs) f (p ∷ all) rewrite lastAll-mapAll xs f all with lastAll xs all
-lastAll-mapAll (x ∷ xs) f (p ∷ all) | all′ , p′ = refl
-
-
 applyTyArgs : ∀ {Σ κ} → Type Σ κ → Types Σ (saturatedTyCxt κ) → Type Σ ∗
 applyTyArgs {κ = ∗} τ [] = τ
-applyTyArgs {Σ} {κ = κ ⇒ κ₁} τ τs with lastAll _ τs
-... | τs′ , τ₁ = applyTyArgs (τ $ τ₁) τs′
+applyTyArgs {κ = κ₁ ⇒ κ₂} f (a ∷ as) = applyTyArgs (f $ a) as
 
 tyConType : ∀ {κ} → (tc : TyCon κ) → Type (tyConCxt tc) ∗
 tyConType tc = applyTyArgs (con tc) IdS
 
 dcType : ∀ {κ} {tc : TyCon κ} → DataCon tc → Type [] ∗
-dcType {κ} dc = mkForAll (ADT.tyCxt adt)
-                         (mkFunRev (dataConArgs dc)
-                                   (tyConType (con adt)))
+dcType {κ} dc = 
+  mkForAll (ADT.tyCxt adt) 
+    (mkFunRev 
+      (dataConArgs dc)
+      (tyConType (con adt)))
   where
     adt : ADT κ
     adt = dataConADT dc
-
-
 
 data Branch (Σ : TyCxt) (Γ : Cxt Σ) {κ} (adt : ADT κ)
             (tyArgs : Types Σ (ADT.tyCxt adt)) (τ : Type Σ ∗) : Set
